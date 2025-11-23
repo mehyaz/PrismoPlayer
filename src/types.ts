@@ -21,3 +21,24 @@ export interface PlayerState {
     isMuted: boolean;
     playbackRate: number;
 }
+
+export interface Movie {
+    id: string;
+    title: string;
+    year: string;
+    image: string;
+}
+
+export interface ParentsGuideItem {
+    category: string;
+    status: string;
+    items: string[];
+}
+
+export interface RecentlyWatchedItem {
+    path: string;
+    timestamp: number; // Last watched timestamp (Date.now())
+    progress: number; // Video progress in seconds
+    duration: number; // Total duration in seconds
+    title?: string; // Optional title (filename or scraped title)
+}

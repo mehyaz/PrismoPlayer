@@ -5,9 +5,10 @@ import { SkipSegment } from '../../types';
 interface VideoPlayerProps {
     src: string;
     skipSegments?: SkipSegment[];
+    onTimeUpdate?: (time: number) => void;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = [] }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = [], onTimeUpdate }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const controlsTimeoutRef = useRef<NodeJS.Timeout>();
@@ -90,6 +91,68 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
     };
 
     useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
+            switch (e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    if (videoRef.current) {
+                        videoRef.current.currentTime -= 5;
+                    }
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    if (videoRef.current) {
+                        videoRef.current.currentTime += 5;
+                    }
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    setVolume(prev => {
+                        const newVol = Math.min(1, prev + 0.1);
+                        if (videoRef.current) videoRef.current.volume = newVol;
+                        return newVol;
+                    });
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    setVolume(prev => {
+                        const newVol = Math.max(0, prev - 0.1);
+                        if (videoRef.current) videoRef.current.volume = newVol;
+                        return newVol;
+                    });
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    if (!document.fullscreenElement) {
+                        containerRef.current?.requestFullscreen();
+                    } else {
+                        document.exitFullscreen();
+                    }
+                    break;
+                case 'KeyM':
+                    e.preventDefault();
+                    toggleMute();
+                    break;
+            }
+
+            // Show controls on key press
+            handleMouseMove();
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPlaying, volume, isMuted]); // Dependencies for closure values
+
+    useEffect(() => {
         const video = videoRef.current;
         if (video && src) {
             video.volume = 0.8;
@@ -97,6 +160,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
             video.play().catch(() => setIsPlaying(false));
         }
     }, [src]);
+
+    const [subtitleSrc, setSubtitleSrc] = useState<string>('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleSubtitleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setSubtitleSrc(url);
+        }
+    };
 
     return (
         <div
@@ -139,6 +213,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 ref={videoRef}
                 src={src}
                 autoPlay
+                crossOrigin="anonymous"
                 style={{
                     position: 'absolute',
                     top: 0,
@@ -149,7 +224,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 }}
                 onTimeUpdate={() => {
                     if (videoRef.current) {
-                        setCurrentTime(videoRef.current.currentTime);
+                        const time = videoRef.current.currentTime;
+                        setCurrentTime(time);
+                        onTimeUpdate?.(time);
                     }
                 }}
                 onLoadedMetadata={() => {
@@ -160,6 +237,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 onClick={togglePlay}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
+            >
+                {subtitleSrc && (
+                    <track
+                        kind="subtitles"
+                        src={subtitleSrc}
+                        srcLang="en"
+                        label="English"
+                        default
+                    />
+                )}
+            </video>
+
+            {/* Hidden File Input for Subtitles */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleSubtitleSelect}
+                accept=".srt,.vtt"
+                style={{ display: 'none' }}
             />
 
             {/* Controls */}
@@ -263,26 +359,47 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                         </span>
                     </div>
 
-                    {/* Fullscreen Button */}
-                    <button
-                        onClick={() => {
-                            if (!document.fullscreenElement) {
-                                containerRef.current?.requestFullscreen();
-                            } else {
-                                document.exitFullscreen();
-                            }
-                        }}
-                        style={{
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: '24px',
-                            padding: '8px'
-                        }}
-                    >
-                        ⛶
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        {/* Subtitle Button */}
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            title="Load Subtitles"
+                            style={{
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                color: subtitleSrc ? '#22d3ee' : 'white',
+                                cursor: 'pointer',
+                                fontSize: '20px',
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}
+                        >
+                            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>CC</span>
+                        </button>
+
+                        {/* Fullscreen Button */}
+                        <button
+                            onClick={() => {
+                                if (!document.fullscreenElement) {
+                                    containerRef.current?.requestFullscreen();
+                                } else {
+                                    document.exitFullscreen();
+                                }
+                            }}
+                            style={{
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '24px',
+                                padding: '8px'
+                            }}
+                        >
+                            ⛶
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
