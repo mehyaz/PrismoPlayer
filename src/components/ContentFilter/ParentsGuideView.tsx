@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, AlertTriangle, Plus, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import { ParentsGuideItem, SkipSegment } from '../../types';
+import { ParentsGuideItem } from '../../types';
 
 interface ParentsGuideViewProps {
     isOpen: boolean;

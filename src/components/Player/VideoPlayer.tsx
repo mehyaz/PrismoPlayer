@@ -1,6 +1,27 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useSkipEngine } from '../../hooks/useSkipEngine';
 import { SkipSegment } from '../../types';
+import {
+    Play,
+    Pause,
+    Volume2,
+    VolumeX,
+    Maximize,
+    Minimize,
+    RotateCcw,
+    ClosedCaption,
+    Settings,
+    X,
+    SkipBack,
+    SkipForward,
+} from 'lucide-react';
+
+const formatTime = (time: number) => {
+    if (!isFinite(time)) return '0:00';
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
 
 interface VideoPlayerProps {
     src: string;
@@ -11,76 +32,89 @@ interface VideoPlayerProps {
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = [], onTimeUpdate }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.8);
     const [isMuted, setIsMuted] = useState(false);
     const [showControls, setShowControls] = useState(true);
+    const [showSubtitles, setShowSubtitles] = useState(false);
+    const [subtitleSrc, setSubtitleSrc] = useState<string>('');
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
 
-    // Integrate Skip Engine
     useSkipEngine({
         currentTime,
         segments: skipSegments,
         onSeek: (time) => {
-            if (videoRef.current) {
-                videoRef.current.currentTime = time;
-            }
+            if (videoRef.current) videoRef.current.currentTime = time;
         },
     });
 
-    const formatTime = (time: number) => {
-        if (!isFinite(time)) return '0:00';
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const togglePlay = () => {
-        if (videoRef.current) {
-            if (isPlaying) {
-                videoRef.current.pause();
-            } else {
-                videoRef.current.play();
-            }
-        }
-    };
-
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newVolume = parseFloat(e.target.value);
-        setVolume(newVolume);
-        if (videoRef.current) {
-            videoRef.current.volume = newVolume;
-            setIsMuted(newVolume === 0);
-        }
-    };
-
-    const toggleMute = () => {
-        if (videoRef.current) {
-            const newMuted = !isMuted;
-            setIsMuted(newMuted);
-            videoRef.current.muted = newMuted;
-            if (!newMuted && volume === 0) {
-                setVolume(0.5);
-                videoRef.current.volume = 0.5;
-            }
-        }
-    };
-
-    const handleMouseMove = () => {
-        setShowControls(true);
-        if (controlsTimeoutRef.current) {
-            clearTimeout(controlsTimeoutRef.current);
-        }
+    const togglePlay = useCallback(() => {
+        if (!videoRef.current) return;
         if (isPlaying) {
-            controlsTimeoutRef.current = setTimeout(() => {
-                setShowControls(false);
-            }, 3000);
+            videoRef.current.pause();
+        } else {
+            videoRef.current.play().catch(() => setIsPlaying(false));
         }
-    };
+    }, [isPlaying]);
 
-    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const newVol = parseFloat(e.target.value);
+        setVolume(newVol);
+        if (videoRef.current) {
+            videoRef.current.volume = newVol;
+            videoRef.current.muted = newVol === 0;
+        }
+        setIsMuted(newVol === 0);
+    }, []);
+
+    const toggleMute = useCallback(() => {
+        if (!videoRef.current) return;
+        const newMuted = !isMuted;
+        setIsMuted(newMuted);
+        videoRef.current.muted = newMuted;
+        if (!newMuted && volume === 0) {
+            setVolume(0.5);
+            videoRef.current.volume = 0.5;
+        }
+    }, [isMuted, volume]);
+
+    const seek = useCallback((seconds: number) => {
+        if (videoRef.current) {
+            const newTime = Math.max(0, Math.min(videoRef.current.duration, videoRef.current.currentTime + seconds));
+            videoRef.current.currentTime = newTime;
+        }
+    }, []);
+
+    const toggleFullscreen = useCallback(() => {
+        const element = containerRef.current;
+        if (!element) return;
+        if (!document.fullscreenElement) {
+            element.requestFullscreen?.().catch((err) => console.error('Fullscreen error', err));
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen?.().catch((err) => console.error('Exit fullscreen error', err));
+            setIsFullscreen(false);
+        }
+    }, []);
+
+    const toggleSubtitles = useCallback(() => setShowSubtitles((prev) => !prev), []);
+
+    const handleSubtitleSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setSubtitleSrc(url);
+            setShowSubtitles(true);
+        }
+    }, []);
+
+    const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percentage = x / rect.width;
@@ -88,320 +122,338 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
         if (videoRef.current) {
             videoRef.current.currentTime = time;
         }
-    };
+    }, [duration]);
 
+    const handleTimeUpdate = useCallback(() => {
+        if (videoRef.current) {
+            const t = videoRef.current.currentTime;
+            setCurrentTime(t);
+            onTimeUpdate?.(t);
+        }
+    }, [onTimeUpdate]);
+
+    const handleLoadedMetadata = useCallback(() => {
+        if (videoRef.current) {
+            setDuration(videoRef.current.duration);
+
+            // Check audio tracks
+            setTimeout(() => {
+                if (videoRef.current) {
+                    const video = videoRef.current as any;
+                    const hasAudio = video.mozHasAudio ||
+                        video.webkitAudioDecodedByteCount > 0 ||
+                        (video.audioTracks && video.audioTracks.length > 0);
+
+                    if (!hasAudio) {
+                        console.warn('No audio detected - video may have unsupported audio codec (AC3, DTS, etc.)');
+                        // Show a subtle warning
+                        const audioWarning = document.createElement('div');
+                        audioWarning.textContent = '⚠️ Ses codec\'i desteklenmiyor (AC3/DTS). AAC codec\'li torrent deneyin.';
+                        audioWarning.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(255,165,0,0.9); color: white; padding: 12px 24px; border-radius: 8px; z-index: 9999; font-size: 14px;';
+                        document.body.appendChild(audioWarning);
+                        setTimeout(() => audioWarning.remove(), 8000);
+                    }
+                }
+            }, 1000);
+        }
+    }, []);
+
+    const handleMouseMove = useCallback(() => {
+        setShowControls(true);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (isPlaying) {
+            controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+        }
+    }, [isPlaying]);
+
+    // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore if typing in an input
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-                return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            const handled = ['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyM', 'KeyF', 'Escape', 'KeyK'];
+            if (handled.includes(e.code)) {
+                e.preventDefault();
+                e.stopPropagation();
             }
+            if (!videoRef.current) return;
 
             switch (e.code) {
-                case 'Space':
-                    e.preventDefault();
-                    togglePlay();
-                    break;
                 case 'ArrowLeft':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.currentTime -= 5;
-                    }
+                    seek(-5);
                     break;
                 case 'ArrowRight':
-                    e.preventDefault();
-                    if (videoRef.current) {
-                        videoRef.current.currentTime += 5;
-                    }
+                    seek(5);
                     break;
                 case 'ArrowUp':
-                    e.preventDefault();
-                    setVolume(prev => {
-                        const newVol = Math.min(1, prev + 0.1);
-                        if (videoRef.current) videoRef.current.volume = newVol;
-                        return newVol;
+                    setVolume((v) => {
+                        const nv = Math.min(1, v + 0.1);
+                        if (videoRef.current) videoRef.current.volume = nv;
+                        return nv;
                     });
                     break;
                 case 'ArrowDown':
-                    e.preventDefault();
-                    setVolume(prev => {
-                        const newVol = Math.max(0, prev - 0.1);
-                        if (videoRef.current) videoRef.current.volume = newVol;
-                        return newVol;
+                    setVolume((v) => {
+                        const nv = Math.max(0, v - 0.1);
+                        if (videoRef.current) videoRef.current.volume = nv;
+                        return nv;
                     });
                     break;
                 case 'KeyF':
-                    e.preventDefault();
-                    if (!document.fullscreenElement) {
-                        containerRef.current?.requestFullscreen();
-                    } else {
-                        document.exitFullscreen();
-                    }
+                    toggleFullscreen();
+                    break;
+                case 'KeyK':
+                case 'Space':
+                    togglePlay();
                     break;
                 case 'KeyM':
-                    e.preventDefault();
                     toggleMute();
                     break;
+                case 'Escape':
+                    if (showSettings) {
+                        setShowSettings(false);
+                    } else if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                        setIsFullscreen(false);
+                    }
+                    break;
+                default:
+                    break;
             }
-
-            // Show controls on key press
             handleMouseMove();
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isPlaying, volume, isMuted]); // Dependencies for closure values
+    }, [toggleFullscreen, togglePlay, toggleMute, seek, handleMouseMove, showSettings]);
+
+    useEffect(() => {
+        const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', onFsChange);
+        return () => document.removeEventListener('fullscreenchange', onFsChange);
+    }, []);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const onPlaying = () => setIsPlaying(true);
+        const onPause = () => setIsPlaying(false);
+
+        video.addEventListener('playing', onPlaying);
+        video.addEventListener('pause', onPause);
+        video.volume = isMuted ? 0 : volume;
+
+        return () => {
+            video.removeEventListener('playing', onPlaying);
+            video.removeEventListener('pause', onPause);
+        };
+    }, [isMuted, volume]);
 
     useEffect(() => {
         const video = videoRef.current;
         if (video && src) {
-            video.volume = 0.8;
+            video.src = src;
             video.load();
             video.play().catch(() => setIsPlaying(false));
         }
     }, [src]);
 
-    const [subtitleSrc, setSubtitleSrc] = useState<string>('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const containerStyle: React.CSSProperties = {
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#000',
+    };
 
-    const handleSubtitleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            setSubtitleSrc(url);
-        }
+    const videoStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+    };
+
+    const topBarStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '16px',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
+        opacity: showControls || !isPlaying ? 1 : 0,
+        transition: 'opacity 0.3s',
+    };
+
+    const bottomBarStyle: React.CSSProperties = {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        padding: '16px',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)',
+        opacity: showControls || !isPlaying ? 1 : 0,
+        transform: showControls || !isPlaying ? 'translateY(0)' : 'translateY(16px)',
+        transition: 'all 0.3s',
+    };
+
+    const buttonStyle: React.CSSProperties = {
+        padding: '8px',
+        borderRadius: '50%',
+        background: 'transparent',
+        border: 'none',
+        color: 'white',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+    };
+
+    const progressBarStyle: React.CSSProperties = {
+        position: 'relative',
+        height: '6px',
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: '3px',
+        marginBottom: '12px',
+        cursor: 'pointer',
+    };
+
+    const progressFillStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        height: '100%',
+        backgroundColor: '#dc2626',
+        borderRadius: '3px',
+        width: `${(currentTime / (duration || 1)) * 100}%`,
     };
 
     return (
         <div
             ref={containerRef}
+            style={containerStyle}
             onMouseMove={handleMouseMove}
             onMouseLeave={() => isPlaying && setShowControls(false)}
-            style={{
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                backgroundColor: '#000000',
-                cursor: showControls ? 'default' : 'none'
-            }}
         >
-            {/* Back Button */}
-            <button
-                onClick={() => window.location.reload()}
-                style={{
-                    position: 'absolute',
-                    top: '16px',
-                    left: '16px',
-                    zIndex: 50,
-                    padding: '8px 16px',
-                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                    color: 'white',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    opacity: showControls || !isPlaying ? 1 : 0,
-                    transition: 'opacity 0.3s',
-                    pointerEvents: showControls || !isPlaying ? 'auto' : 'none'
-                }}
-            >
-                ← Back
-            </button>
-
-            {/* Video Element */}
             <video
                 ref={videoRef}
                 src={src}
-                autoPlay
-                crossOrigin="anonymous"
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain'
-                }}
-                onTimeUpdate={() => {
-                    if (videoRef.current) {
-                        const time = videoRef.current.currentTime;
-                        setCurrentTime(time);
-                        onTimeUpdate?.(time);
-                    }
-                }}
-                onLoadedMetadata={() => {
-                    if (videoRef.current) {
-                        setDuration(videoRef.current.duration);
-                    }
-                }}
+                style={videoStyle}
                 onClick={togglePlay}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
+                onDoubleClick={toggleFullscreen}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onError={(e) => console.error('Video error:', e)}
+                autoPlay
+                playsInline
+                controls={false}
             >
-                {subtitleSrc && (
-                    <track
-                        kind="subtitles"
-                        src={subtitleSrc}
-                        srcLang="en"
-                        label="English"
-                        default
-                    />
-                )}
+                {subtitleSrc && showSubtitles && <track kind="subtitles" src={subtitleSrc} srcLang="tr" default />}
+                Your browser does not support the video tag.
             </video>
 
-            {/* Hidden File Input for Subtitles */}
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleSubtitleSelect}
-                accept=".srt,.vtt"
-                style={{ display: 'none' }}
-            />
+            {/* Top bar */}
+            <div style={topBarStyle}>
+                <button onClick={() => window.location.reload()} style={{ ...buttonStyle, padding: '8px 12px', borderRadius: '6px', background: 'rgba(0,0,0,0.6)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <RotateCcw size={18} />
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Geri Dön</span>
+                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={toggleSubtitles} style={{ ...buttonStyle, color: showSubtitles ? '#60a5fa' : 'white' }} title="Altyazı">
+                        <ClosedCaption size={20} />
+                    </button>
+                    <button onClick={toggleFullscreen} style={buttonStyle} title="Tam Ekran">
+                        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                    </button>
+                </div>
+            </div>
 
-            {/* Controls */}
-            <div style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                zIndex: 100,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.6), transparent)',
-                padding: '60px 32px 24px 32px',
-                opacity: showControls || !isPlaying ? 1 : 0,
-                transform: showControls || !isPlaying ? 'translateY(0)' : 'translateY(20px)',
-                transition: 'opacity 0.3s, transform 0.3s',
-                pointerEvents: showControls || !isPlaying ? 'auto' : 'none'
-            }}>
-                {/* Progress Bar */}
-                <div
-                    onClick={handleProgressClick}
-                    style={{
-                        position: 'relative',
-                        height: '6px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                        marginBottom: '16px'
-                    }}
-                >
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        height: '100%',
-                        width: `${(currentTime / (duration || 1)) * 100}%`,
-                        backgroundColor: '#DC2626',
-                        borderRadius: '3px'
-                    }} />
+            {/* Bottom controls */}
+            <div style={bottomBarStyle}>
+                {/* Progress bar */}
+                <div style={progressBarStyle} onClick={handleProgressClick}>
+                    <div style={progressFillStyle} />
                 </div>
 
-                {/* Control Buttons */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    color: 'white'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                        {/* Play/Pause Button */}
-                        <button
-                            onClick={togglePlay}
-                            style={{
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                color: 'white',
-                                cursor: 'pointer',
-                                fontSize: '32px',
-                                padding: '8px'
-                            }}
-                        >
-                            {isPlaying ? '⏸' : '▶'}
+                {/* Time display */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#d1d5db', marginBottom: '12px' }}>
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration)}</span>
+                </div>
+
+                {/* Control buttons */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button onClick={togglePlay} style={buttonStyle} aria-label={isPlaying ? 'Duraklat' : 'Oynat'}>
+                            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
                         </button>
-
-                        {/* Volume Control */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <button
-                                onClick={toggleMute}
-                                style={{
-                                    backgroundColor: 'transparent',
-                                    border: 'none',
-                                    color: 'white',
-                                    cursor: 'pointer',
-                                    fontSize: '24px',
-                                    padding: '8px'
-                                }}
-                            >
-                                {isMuted ? '🔇' : volume > 0.5 ? '🔊' : volume > 0 ? '🔉' : '🔈'}
-                            </button>
-                            <input
-                                type="range"
-                                min={0}
-                                max={1}
-                                step={0.05}
-                                value={isMuted ? 0 : volume}
-                                onChange={handleVolumeChange}
-                                style={{
-                                    width: '100px',
-                                    height: '4px',
-                                    cursor: 'pointer',
-                                    background: `linear-gradient(to right, #DC2626 0%, #DC2626 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) 100%)`,
-                                    borderRadius: '2px',
-                                    outline: 'none',
-                                    WebkitAppearance: 'none',
-                                    appearance: 'none'
-                                }}
-                            />
-                        </div>
-
-                        {/* Time Display */}
-                        <span style={{ fontSize: '14px', fontFamily: 'monospace' }}>
-                            {formatTime(currentTime)} / {formatTime(duration)}
-                        </span>
+                        <button onClick={toggleMute} style={buttonStyle} aria-label={isMuted ? 'Sesi Aç' : 'Sessiz'}>
+                            {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                        </button>
+                        <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={isMuted ? 0 : volume}
+                            onChange={handleVolumeChange}
+                            style={{
+                                width: '96px',
+                                height: '6px',
+                                cursor: 'pointer',
+                                WebkitAppearance: 'none',
+                                appearance: 'none',
+                                background: 'rgba(255,255,255,0.2)',
+                                borderRadius: '3px',
+                                outline: 'none'
+                            }}
+                        />
+                        <button onClick={() => seek(-10)} style={buttonStyle} aria-label="10s geri">
+                            <SkipBack size={20} />
+                        </button>
+                        <button onClick={() => seek(10)} style={buttonStyle} aria-label="10s ileri">
+                            <SkipForward size={20} />
+                        </button>
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        {/* Subtitle Button */}
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            title="Load Subtitles"
-                            style={{
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                color: subtitleSrc ? '#22d3ee' : 'white',
-                                cursor: 'pointer',
-                                fontSize: '20px',
-                                padding: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px'
-                            }}
-                        >
-                            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>CC</span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
+                        <button onClick={() => fileInputRef.current?.click()} style={buttonStyle} title="Altyazı Yükle">
+                            <ClosedCaption size={20} />
                         </button>
-
-                        {/* Fullscreen Button */}
-                        <button
-                            onClick={() => {
-                                if (!document.fullscreenElement) {
-                                    containerRef.current?.requestFullscreen();
-                                } else {
-                                    document.exitFullscreen();
-                                }
-                            }}
-                            style={{
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                color: 'white',
-                                cursor: 'pointer',
-                                fontSize: '24px',
-                                padding: '8px'
-                            }}
-                        >
-                            ⛶
+                        <button onClick={() => setShowSettings((s) => !s)} style={buttonStyle} aria-label="Ayarlar">
+                            <Settings size={20} />
                         </button>
+                        {showSettings && (
+                            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px', width: '192px', backgroundColor: '#1f2937', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '8px 0', zIndex: 20 }}>
+                                <div style={{ padding: '8px 16px', borderBottom: '1px solid #374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 500, fontSize: '14px' }}>Ayarlar</span>
+                                    <button onClick={() => setShowSettings(false)} style={{ ...buttonStyle, padding: '4px', color: '#9ca3af' }}>
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        if (videoRef.current) {
+                                            videoRef.current.currentTime = 0;
+                                            videoRef.current.pause();
+                                            setIsPlaying(false);
+                                        }
+                                        setShowSettings(false);
+                                    }}
+                                    style={{ width: '100%', textAlign: 'left', padding: '8px 16px', background: 'transparent', border: 'none', color: '#f87171', fontSize: '14px', cursor: 'pointer' }}
+                                >
+                                    Videoyu Sıfırla
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Hidden file input for subtitles */}
+            <input type="file" accept=".srt,.vtt" ref={fileInputRef} onChange={handleSubtitleSelect} style={{ display: 'none' }} />
         </div>
     );
 };

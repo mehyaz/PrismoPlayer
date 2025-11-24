@@ -1,0 +1,109 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Host www.imdb.com:443 was resolved.
+* IPv6: (none)
+* IPv4: 3.169.89.176
+*   Trying 3.169.89.176:443...
+* Connected to www.imdb.com (3.169.89.176) port 443
+* ALPN: curl offers h2,http/1.1
+* (304) (OUT), TLS handshake, Client hello (1):
+} [317 bytes data]
+*  CAfile: /etc/ssl/cert.pem
+*  CApath: none
+* (304) (IN), TLS handshake, Server hello (2):
+{ [122 bytes data]
+* (304) (IN), TLS handshake, Unknown (8):
+{ [19 bytes data]
+* (304) (IN), TLS handshake, Certificate (11):
+{ [3958 bytes data]
+* (304) (IN), TLS handshake, CERT verify (15):
+{ [264 bytes data]
+* (304) (IN), TLS handshake, Finished (20):
+{ [36 bytes data]
+* (304) (OUT), TLS handshake, Finished (20):
+} [36 bytes data]
+* SSL connection using TLSv1.3 / AEAD-AES128-GCM-SHA256 / [blank] / UNDEF
+* ALPN: server accepted h2
+* Server certificate:
+*  subject: CN=us.dd.imdb.com
+*  start date: Nov 11 00:00:00 2025 GMT
+*  expire date: Oct  3 23:59:59 2026 GMT
+*  subjectAltName: host "www.imdb.com" matched cert's "www.imdb.com"
+*  issuer: C=US; O=Amazon; CN=Amazon RSA 2048 M01
+*  SSL certificate verify ok.
+* using HTTP/2
+* [HTTP/2] [1] OPENED stream for https://www.imdb.com/title/tt0120663/parentalguide
+* [HTTP/2] [1] [:method: GET]
+* [HTTP/2] [1] [:scheme: https]
+* [HTTP/2] [1] [:authority: www.imdb.com]
+* [HTTP/2] [1] [:path: /title/tt0120663/parentalguide]
+* [HTTP/2] [1] [user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36]
+* [HTTP/2] [1] [accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8]
+* [HTTP/2] [1] [accept-language: en-US,en;q=0.9]
+> GET /title/tt0120663/parentalguide HTTP/2
+> Host: www.imdb.com
+> User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+> Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8
+> Accept-Language: en-US,en;q=0.9
+> 
+* Request completely sent off
+< HTTP/2 308 
+< server: Server
+< date: Sun, 23 Nov 2025 21:25:17 GMT
+< strict-transport-security: max-age=47474747; includeSubDomains; preload
+< vary: Content-Type,Accept-Encoding,User-Agent
+< x-amz-rid: HRBJ2K2XN2V30JD5S3RQ
+< location: /title/tt0120663/parentalguide/
+< refresh: 0;url=/title/tt0120663/parentalguide/
+< x-cache: Miss from cloudfront
+< via: 1.1 a736254f0b59a02f24af33099933e66a.cloudfront.net (CloudFront)
+< x-amz-cf-pop: IST52-P1
+< alt-svc: h3=":443"; ma=86400
+< x-amz-cf-id: qtDvv2eEBVhCzhcAy_3iKgBjfdpykMXU-ZNgSHfpMDQxSRqbVdiT9g==
+< 
+* Ignoring the response-body
+100    31    0    31    0     0     84      0 --:--:-- --:--:-- --:--:--    84
+* Connection #0 to host www.imdb.com left intact
+* Issue another request to this URL: 'https://www.imdb.com/title/tt0120663/parentalguide/'
+* Found bundle for host: 0x10313e840 [can multiplex]
+* Re-using existing connection with host www.imdb.com
+* [HTTP/2] [3] OPENED stream for https://www.imdb.com/title/tt0120663/parentalguide/
+* [HTTP/2] [3] [:method: GET]
+* [HTTP/2] [3] [:scheme: https]
+* [HTTP/2] [3] [:authority: www.imdb.com]
+* [HTTP/2] [3] [:path: /title/tt0120663/parentalguide/]
+* [HTTP/2] [3] [user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36]
+* [HTTP/2] [3] [accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8]
+* [HTTP/2] [3] [accept-language: en-US,en;q=0.9]
+> GET /title/tt0120663/parentalguide/ HTTP/2
+> Host: www.imdb.com
+> User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+> Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8
+> Accept-Language: en-US,en;q=0.9
+> 
+* Request completely sent off
+< HTTP/2 200 
+< content-type: text/html; charset=utf-8
+< server: Server
+< date: Sun, 23 Nov 2025 21:25:18 GMT
+< vary: Accept-Encoding,Content-Type,Accept-Encoding,User-Agent
+< strict-transport-security: max-age=47474747; includeSubDomains; preload
+< x-amz-rid: N4VAFAK7X1CZZQ4C2MVG
+< set-cookie: session-id=131-5210546-3628638; Domain=.imdb.com; Expires=Tue, 01 Jan 2036 08:00:01 GMT; Path=/; Secure
+< set-cookie: session-id-time=2082787201l; Domain=.imdb.com; Expires=Tue, 01 Jan 2036 08:00:01 GMT; Path=/; Secure
+< set-cookie: international-seo=; Max-Age=0; Domain=.imdb.com; Path=/; Secure; SameSite=Strict
+< set-cookie: next-sid=F2Hxkyp1IduROqCc0O8jL; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly
+< content-security-policy: frame-ancestors 'self' imdb.com *.imdb.com *.media-imdb.com withoutabox.com *.withoutabox.com amazon.com *.amazon.com amazon.co.uk *.amazon.co.uk amazon.de *.amazon.de translate.google.com images.google.com www.google.com www.google.co.uk search.aol.com bing.com www.bing.com
+< x-frame-options: SAMEORIGIN
+< x-xss-protection: 1; mode=block
+< cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+< etag: "sq56tkqhiro4ru"
+< x-cache: Miss from cloudfront
+< via: 1.1 a736254f0b59a02f24af33099933e66a.cloudfront.net (CloudFront)
+< x-amz-cf-pop: IST52-P1
+< alt-svc: h3=":443"; ma=86400
+< x-amz-cf-id: Fh3OpFYBB5IZRqRKahu5dSWBMRNYNbF1_iSpp6JqV3_Y5M3IQoZNRQ==
+< 
+{ [6967 bytes data]
+100  6967    0  6967    0     0   8231      0 --:--:-- --:--:-- --:--:--  8231100 1099k    0 1099k    0     0   740k      0 --:--:--  0:00:01 --:--:-- 1713k
+* Connection #0 to host www.imdb.com left intact

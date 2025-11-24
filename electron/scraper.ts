@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as cheerio from 'cheerio';
+
 
 export interface ParentsGuideItem {
     category: string;
@@ -15,52 +15,29 @@ export const getParentsGuide = async (imdbId: string): Promise<ParentsGuideItem[
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
         });
-        const $ = cheerio.load(data);
-        const guide: ParentsGuideItem[] = [];
-
-        // Categories usually: Sex & Nudity, Violence & Gore, Profanity, Alcohol, Drugs & Smoking, Frightening & Intense Scenes
-        const categories = [
-            'Sex & Nudity',
-            'Violence & Gore',
-            'Profanity',
-            'Alcohol, Drugs & Smoking',
-            'Frightening & Intense Scenes'
-        ];
-
-        // Note: IMDb structure changes often. This is a best-effort selector based on common structure.
-        // Usually sections have ids like 'advisory-nudity', 'advisory-violence', etc.
-
-        const categoryMap: Record<string, string> = {
-            'Sex & Nudity': 'advisory-nudity',
-            'Violence & Gore': 'advisory-violence',
-            'Profanity': 'advisory-profanity',
-            'Alcohol, Drugs & Smoking': 'advisory-alcohol',
-            'Frightening & Intense Scenes': 'advisory-frightening'
-        };
-
-        for (const cat of categories) {
-            const id = categoryMap[cat];
-            const section = $(`#${id}`);
-
-            if (section.length) {
-                const status = section.find('.ipl-status-pill').text().trim() || 'Unknown';
-                const items: string[] = [];
-
-                section.find('.ipl-zebra-list__item').each((_, el) => {
-                    const text = $(el).text().trim();
-                    if (text && !text.includes('Edit') && !text.includes('Add an item')) {
-                        items.push(text);
-                    }
-                });
-
-                guide.push({
-                    category: cat,
-                    status,
-                    items
-                });
-            }
+        // Extract the __NEXT_DATA__ JSON script
+        const jsonMatch = data.match(/<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/);
+        if (!jsonMatch) {
+            console.error('Failed to locate __NEXT_DATA__ script');
+            return [];
         }
-
+        const jsonString = jsonMatch[1];
+        const parsed = JSON.parse(jsonString);
+        const categories = parsed?.props?.pageProps?.contentData?.categories;
+        if (!Array.isArray(categories)) {
+            console.error('Categories not found in __NEXT_DATA__');
+            return [];
+        }
+        const guide: ParentsGuideItem[] = categories.map((cat: any) => {
+            const title = cat.title || cat.id || '';
+            const status = cat.severitySummary?.text || 'Unknown';
+            const items = Array.isArray(cat.items) ? cat.items.map((it: any) => it.text).filter((t: any) => !!t) : [];
+            return {
+                category: title,
+                status,
+                items,
+            } as ParentsGuideItem;
+        });
         return guide;
     } catch (error) {
         console.error('Error fetching parents guide:', error);
@@ -70,32 +47,42 @@ export const getParentsGuide = async (imdbId: string): Promise<ParentsGuideItem[
 
 export const searchMovie = async (query: string) => {
     try {
-        const url = `https://www.imdb.com/find?q=${encodeURIComponent(query)}&s=tt`;
+        const cleanQuery = query.toLowerCase().trim();
+        if (!cleanQuery) return [];
+
+        const firstChar = cleanQuery.charAt(0);
+        const url = `https://v2.sg.media-imdb.com/suggestion/${firstChar}/${encodeURIComponent(cleanQuery)}.json`;
+
+        console.log(`[Scraper] Fetching from API: ${url}`);
+
         const { data } = await axios.get(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
         });
-        const $ = cheerio.load(data);
-        const results: { id: string; title: string; year: string; image: string }[] = [];
 
-        $('.ipc-metadata-list-summary-item').each((_, el) => {
-            const link = $(el).find('a.ipc-metadata-list-summary-item__t');
-            const href = link.attr('href');
-            const idMatch = href?.match(/tt\d+/);
-            const id = idMatch ? idMatch[0] : '';
-            const title = link.text().trim();
-            const year = $(el).find('.ipc-metadata-list-summary-item__li').first().text().trim();
-            const image = $(el).find('img').attr('src') || '';
+        if (!data || !data.d) {
+            console.log('[Scraper] No data found in API response');
+            return [];
+        }
 
-            if (id && title) {
-                results.push({ id, title, year, image });
-            }
-        });
+        const results = data.d.map((item: any) => {
+            // Filter for movies/series if needed, but for now take all relevant items
+            if (!item.id || !item.l) return null;
 
+            return {
+                id: item.id,
+                title: item.l,
+                year: item.y ? item.y.toString() : '',
+                image: item.i ? item.i.imageUrl : ''
+            };
+        }).filter((item: any) => item !== null);
+
+        console.log(`[Scraper] Found ${results.length} results via API`);
         return results;
     } catch (error) {
         console.error('Error searching movie:', error);
+        // Fallback to HTML scraping if API fails? For now, let's stick to API as it's much better.
         return [];
     }
 };

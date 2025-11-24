@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { getParentsGuide, searchMovie } from './scraper'
 import { startTorrent, stopTorrent } from './torrent-handler'
+import { searchTorrent } from './torrent-search'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -107,6 +108,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('stop-torrent', async (_, magnetLink) => {
     return stopTorrent(magnetLink);
+  });
+
+  ipcMain.handle('search-torrent', async (_, query) => {
+    return await searchTorrent(query);
   });
 
   createWindow();
