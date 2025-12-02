@@ -14,6 +14,7 @@ import {
     X,
     SkipBack,
     SkipForward,
+    ArrowLeft
 } from 'lucide-react';
 
 const formatTime = (time: number) => {
@@ -148,8 +149,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                         console.warn('No audio detected - video may have unsupported audio codec (AC3, DTS, etc.)');
                         // Show a subtle warning
                         const audioWarning = document.createElement('div');
-                        audioWarning.textContent = '⚠️ Ses codec\'i desteklenmiyor (AC3/DTS). AAC codec\'li torrent deneyin.';
-                        audioWarning.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(255,165,0,0.9); color: white; padding: 12px 24px; border-radius: 8px; z-index: 9999; font-size: 14px;';
+                        audioWarning.textContent = '⚠️ Audio codec not supported (e.g., AC3/DTS). Try AAC torrents.';
+                        audioWarning.className = "fixed top-24 left-1/2 -translate-x-1/2 bg-orange-500/90 text-white px-4 py-2 rounded-lg z-50 text-sm font-medium shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-4";
                         document.body.appendChild(audioWarning);
                         setTimeout(() => audioWarning.remove(), 8000);
                     }
@@ -256,92 +257,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
         }
     }, [src]);
 
-    const containerStyle: React.CSSProperties = {
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#000',
-    };
-
-    const videoStyle: React.CSSProperties = {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        objectFit: 'contain',
-    };
-
-    const topBarStyle: React.CSSProperties = {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px',
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
-        opacity: showControls || !isPlaying ? 1 : 0,
-        transition: 'opacity 0.3s',
-    };
-
-    const bottomBarStyle: React.CSSProperties = {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        padding: '16px',
-        background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)',
-        opacity: showControls || !isPlaying ? 1 : 0,
-        transform: showControls || !isPlaying ? 'translateY(0)' : 'translateY(16px)',
-        transition: 'all 0.3s',
-    };
-
-    const buttonStyle: React.CSSProperties = {
-        padding: '8px',
-        borderRadius: '50%',
-        background: 'transparent',
-        border: 'none',
-        color: 'white',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    };
-
-    const progressBarStyle: React.CSSProperties = {
-        position: 'relative',
-        height: '6px',
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: '3px',
-        marginBottom: '12px',
-        cursor: 'pointer',
-    };
-
-    const progressFillStyle: React.CSSProperties = {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        height: '100%',
-        backgroundColor: '#dc2626',
-        borderRadius: '3px',
-        width: `${(currentTime / (duration || 1)) * 100}%`,
-    };
-
     return (
         <div
             ref={containerRef}
-            style={containerStyle}
+            className="relative w-full h-full bg-black group overflow-hidden font-sans"
             onMouseMove={handleMouseMove}
             onMouseLeave={() => isPlaying && setShowControls(false)}
         >
             <video
                 ref={videoRef}
                 src={src}
-                style={videoStyle}
+                className="absolute top-0 left-0 w-full h-full object-contain"
                 onClick={togglePlay}
                 onDoubleClick={toggleFullscreen}
                 onTimeUpdate={handleTimeUpdate}
@@ -355,99 +281,134 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 Your browser does not support the video tag.
             </video>
 
-            {/* Top bar */}
-            <div style={topBarStyle}>
-                <button onClick={() => window.location.reload()} style={{ ...buttonStyle, padding: '8px 12px', borderRadius: '6px', background: 'rgba(0,0,0,0.6)', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <RotateCcw size={18} />
-                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Geri Dön</span>
+            {/* Top Bar (Back & Title) */}
+            <div 
+                className={`absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 transition-opacity duration-300 flex justify-between items-center ${showControls ? 'opacity-100' : 'opacity-0'}`}
+            >
+                <button 
+                    onClick={() => window.location.reload()} 
+                    className="flex items-center gap-2 text-white/80 hover:text-white bg-black/20 hover:bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm transition-all border border-white/5"
+                >
+                    <ArrowLeft size={20} />
+                    <span className="font-medium text-sm">Back to Menu</span>
                 </button>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={toggleSubtitles} style={{ ...buttonStyle, color: showSubtitles ? '#60a5fa' : 'white' }} title="Altyazı">
+                
+                <div className="flex gap-3">
+                     <button 
+                        onClick={toggleSubtitles} 
+                        className={`p-2.5 rounded-full backdrop-blur-sm transition-all ${showSubtitles ? 'bg-cyan-500 text-black' : 'bg-black/20 text-white/80 hover:bg-white/20 hover:text-white'}`} 
+                        title="Subtitles"
+                    >
                         <ClosedCaption size={20} />
                     </button>
-                    <button onClick={toggleFullscreen} style={buttonStyle} title="Tam Ekran">
+                    <button 
+                        onClick={toggleFullscreen} 
+                        className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-white backdrop-blur-sm transition-all" 
+                        title="Fullscreen"
+                    >
                         {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                     </button>
                 </div>
             </div>
 
-            {/* Bottom controls */}
-            <div style={bottomBarStyle}>
-                {/* Progress bar */}
-                <div style={progressBarStyle} onClick={handleProgressClick}>
-                    <div style={progressFillStyle} />
-                </div>
-
-                {/* Time display */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#d1d5db', marginBottom: '12px' }}>
-                    <span>{formatTime(currentTime)}</span>
-                    <span>{formatTime(duration)}</span>
-                </div>
-
-                {/* Control buttons */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button onClick={togglePlay} style={buttonStyle} aria-label={isPlaying ? 'Duraklat' : 'Oynat'}>
-                            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                        </button>
-                        <button onClick={toggleMute} style={buttonStyle} aria-label={isMuted ? 'Sesi Aç' : 'Sessiz'}>
-                            {isMuted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
-                        </button>
-                        <input
-                            type="range"
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            value={isMuted ? 0 : volume}
-                            onChange={handleVolumeChange}
-                            style={{
-                                width: '96px',
-                                height: '6px',
-                                cursor: 'pointer',
-                                WebkitAppearance: 'none',
-                                appearance: 'none',
-                                background: 'rgba(255,255,255,0.2)',
-                                borderRadius: '3px',
-                                outline: 'none'
-                            }}
-                        />
-                        <button onClick={() => seek(-10)} style={buttonStyle} aria-label="10s geri">
-                            <SkipBack size={20} />
-                        </button>
-                        <button onClick={() => seek(10)} style={buttonStyle} aria-label="10s ileri">
-                            <SkipForward size={20} />
-                        </button>
+            {/* Bottom Controls */}
+            <div 
+                className={`absolute bottom-0 left-0 right-0 px-6 py-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-all duration-300 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+            >
+                {/* Progress Bar */}
+                <div 
+                    className="relative w-full h-1.5 hover:h-2.5 bg-white/20 rounded-full cursor-pointer mb-4 group/progress transition-all"
+                    onClick={handleProgressClick}
+                >
+                    <div 
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full relative"
+                        style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+                    >
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover/progress:opacity-100 transition-opacity scale-125" />
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
-                        <button onClick={() => fileInputRef.current?.click()} style={buttonStyle} title="Altyazı Yükle">
-                            <ClosedCaption size={20} />
+                </div>
+
+                {/* Controls Row */}
+                <div className="flex justify-between items-center">
+                    
+                    {/* Left Controls */}
+                    <div className="flex items-center gap-4">
+                        <button onClick={togglePlay} className="text-white hover:text-cyan-400 transition-colors p-2 hover:bg-white/10 rounded-full">
+                            {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
                         </button>
-                        <button onClick={() => setShowSettings((s) => !s)} style={buttonStyle} aria-label="Ayarlar">
-                            <Settings size={20} />
-                        </button>
-                        {showSettings && (
-                            <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px', width: '192px', backgroundColor: '#1f2937', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '8px 0', zIndex: 20 }}>
-                                <div style={{ padding: '8px 16px', borderBottom: '1px solid #374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 500, fontSize: '14px' }}>Ayarlar</span>
-                                    <button onClick={() => setShowSettings(false)} style={{ ...buttonStyle, padding: '4px', color: '#9ca3af' }}>
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        if (videoRef.current) {
-                                            videoRef.current.currentTime = 0;
-                                            videoRef.current.pause();
-                                            setIsPlaying(false);
-                                        }
-                                        setShowSettings(false);
-                                    }}
-                                    style={{ width: '100%', textAlign: 'left', padding: '8px 16px', background: 'transparent', border: 'none', color: '#f87171', fontSize: '14px', cursor: 'pointer' }}
-                                >
-                                    Videoyu Sıfırla
-                                </button>
+
+                        <div className="flex items-center gap-2 group/volume">
+                            <button onClick={toggleMute} className="text-white/80 hover:text-white p-2">
+                                {isMuted || volume === 0 ? <VolumeX size={22} /> : <Volume2 size={22} />}
+                            </button>
+                            <div className="w-0 overflow-hidden group-hover/volume:w-24 transition-all duration-300 ease-out flex items-center">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={1}
+                                    step={0.05}
+                                    value={isMuted ? 0 : volume}
+                                    onChange={handleVolumeChange}
+                                    className="w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                />
                             </div>
-                        )}
+                        </div>
+
+                        <div className="flex items-center text-sm font-mono text-white/60 space-x-1 select-none">
+                            <span>{formatTime(currentTime)}</span>
+                            <span className="opacity-50">/</span>
+                            <span>{formatTime(duration)}</span>
+                        </div>
+                    </div>
+
+                    {/* Right Controls (Seek & Settings) */}
+                    <div className="flex items-center gap-2 relative">
+                         <button onClick={() => seek(-10)} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="-10s">
+                            <SkipBack size={22} />
+                        </button>
+                        <button onClick={() => seek(10)} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="+10s">
+                            <SkipForward size={22} />
+                        </button>
+                        
+                        <div className="w-px h-6 bg-white/10 mx-2" />
+
+                        <button onClick={() => fileInputRef.current?.click()} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="Upload Subtitle">
+                            <ClosedCaption size={22} />
+                        </button>
+                        
+                        <div className="relative">
+                            <button onClick={() => setShowSettings((s) => !s)} className={`text-white/70 hover:text-white p-2 rounded-full transition-colors ${showSettings ? 'bg-white/10 text-white' : ''}`}>
+                                <Settings size={22} />
+                            </button>
+                            
+                            {/* Settings Dropdown */}
+                            {showSettings && (
+                                <div className="absolute bottom-full right-0 mb-4 w-56 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                                    <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center">
+                                        <span className="font-semibold text-white text-sm">Settings</span>
+                                        <button onClick={() => setShowSettings(false)} className="text-white/40 hover:text-white">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                    <div className="p-1">
+                                        <button
+                                            onClick={() => {
+                                                if (videoRef.current) {
+                                                    videoRef.current.currentTime = 0;
+                                                    videoRef.current.pause();
+                                                    setIsPlaying(false);
+                                                }
+                                                setShowSettings(false);
+                                            }}
+                                            className="w-full text-left px-3 py-2.5 text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors flex items-center gap-2"
+                                        >
+                                            <RotateCcw size={16} />
+                                            Reset Video
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -16,7 +16,7 @@ import require$$1$2 from "tty";
 import require$$0$2 from "os";
 import zlib from "zlib";
 import { EventEmitter } from "events";
-import WebTorrent from "webtorrent";
+import fs$1 from "node:fs";
 function bind$2(fn, thisArg) {
   return function wrap2() {
     return fn.apply(thisArg, arguments);
@@ -17005,10 +17005,11 @@ const {
   mergeConfig
 } = axios;
 const getParentsGuide = async (imdbId) => {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   try {
     const url2 = `https://www.imdb.com/title/${imdbId}/parentalguide`;
     const { data } = await axios.get(url2, {
+      timeout: 5e3,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
       }
@@ -17020,9 +17021,9 @@ const getParentsGuide = async (imdbId) => {
     }
     const jsonString = jsonMatch[1];
     const parsed = JSON.parse(jsonString);
-    const categories = (_c = (_b = (_a = parsed == null ? void 0 : parsed.props) == null ? void 0 : _a.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.categories;
+    let categories = ((_c = (_b = (_a = parsed == null ? void 0 : parsed.props) == null ? void 0 : _a.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.categories) || ((_f = (_e = (_d = parsed == null ? void 0 : parsed.props) == null ? void 0 : _d.pageProps) == null ? void 0 : _e.mainColumnData) == null ? void 0 : _f.categories) || ((_i = (_h = (_g = parsed == null ? void 0 : parsed.props) == null ? void 0 : _g.pageProps) == null ? void 0 : _h.b) == null ? void 0 : _i.categories);
     if (!Array.isArray(categories)) {
-      console.error("Categories not found in __NEXT_DATA__");
+      console.error("Categories not found in __NEXT_DATA__. Structure:", JSON.stringify((_j = parsed == null ? void 0 : parsed.props) == null ? void 0 : _j.pageProps, null, 2));
       return [];
     }
     const guide = categories.map((cat) => {
@@ -17050,6 +17051,7 @@ const searchMovie = async (query) => {
     const url2 = `https://v2.sg.media-imdb.com/suggestion/${firstChar}/${encodeURIComponent(cleanQuery)}.json`;
     console.log(`[Scraper] Fetching from API: ${url2}`);
     const { data } = await axios.get(url2, {
+      timeout: 5e3,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
       }
@@ -17074,20 +17076,102 @@ const searchMovie = async (query) => {
     return [];
   }
 };
-const client = new WebTorrent();
+const torrentEmitter = new EventEmitter();
+const require$2 = createRequire(import.meta.url);
+const WebTorrent = require$2("webtorrent");
+const CACHE_DIR_NAME = "PrismoPlayerCache";
+const MAX_CACHE_SIZE_GB = 15;
+const MAX_CACHE_BYTES = MAX_CACHE_SIZE_GB * 1024 * 1024 * 1024;
+const UPLOAD_LIMIT_BYTES = 2 * 1024 * 1024;
+const cachePath = path$1.join(app.getPath("userData"), CACHE_DIR_NAME);
+if (!fs$1.existsSync(cachePath)) {
+  fs$1.mkdirSync(cachePath, { recursive: true });
+}
+const client = new WebTorrent({
+  // maxConns: 55,        // Optional: Limit connections
+  uploadLimit: UPLOAD_LIMIT_BYTES
+});
 const torrentServerMap = /* @__PURE__ */ new Map();
+const getDirSize = (dirPath) => {
+  let size = 0;
+  try {
+    const files = fs$1.readdirSync(dirPath);
+    for (const file of files) {
+      const filePath = path$1.join(dirPath, file);
+      const stats = fs$1.statSync(filePath);
+      if (stats.isDirectory()) {
+        size += getDirSize(filePath);
+      } else {
+        size += stats.size;
+      }
+    }
+  } catch (err) {
+    console.error(`[Cache] Error calculating size for ${dirPath}:`, err);
+  }
+  return size;
+};
+const enforceQuota = () => {
+  console.log(`[Cache] Checking quota. Limit: ${MAX_CACHE_SIZE_GB} GB`);
+  let currentSize = getDirSize(cachePath);
+  console.log(`[Cache] Current size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  if (currentSize <= MAX_CACHE_BYTES) {
+    console.log("[Cache] Quota OK.");
+    return;
+  }
+  console.log("[Cache] Quota exceeded. cleaning up old files...");
+  try {
+    const items = fs$1.readdirSync(cachePath).map((file) => {
+      const filePath = path$1.join(cachePath, file);
+      return {
+        path: filePath,
+        stats: fs$1.statSync(filePath)
+      };
+    });
+    items.sort((a, b) => a.stats.mtime.getTime() - b.stats.mtime.getTime());
+    for (const item of items) {
+      if (currentSize <= MAX_CACHE_BYTES) break;
+      console.log(`[Cache] Deleting old item: ${item.path}`);
+      if (item.stats.isDirectory()) {
+        const dirSize = getDirSize(item.path);
+        fs$1.rmSync(item.path, { recursive: true, force: true });
+        currentSize -= dirSize;
+      } else {
+        fs$1.unlinkSync(item.path);
+        currentSize -= item.stats.size;
+      }
+    }
+    console.log(`[Cache] Cleanup complete. New size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  } catch (err) {
+    console.error("[Cache] Error during quota cleanup:", err);
+  }
+};
+const cleanupCache = () => {
+  console.log("[Cache] Application closing. Destroying client and enforcing quota...");
+  client.destroy((err) => {
+    if (err) console.error("[Cache] Error destroying client:", err);
+    else console.log("[Cache] WebTorrent client destroyed.");
+    enforceQuota();
+  });
+};
 const startTorrent = (magnetLink) => {
   return new Promise((resolve, reject) => {
-    console.log(`[Torrent] startTorrent called for: ${magnetLink}`);
+    console.log(`[Torrent] startTorrent called`);
     const existingUrl = torrentServerMap.get(magnetLink);
     if (existingUrl) {
       console.log(`[Torrent] Reusing existing server URL: ${existingUrl}`);
       return resolve(existingUrl);
     }
     const createServerFromTorrent = (torrent) => {
+      if (torrentServerMap.has(magnetLink)) {
+        return resolve(torrentServerMap.get(magnetLink));
+      }
       const server = torrent.createServer();
       server.listen(0, () => {
-        const port = server.address().port;
+        const address = server.address();
+        if (!address || typeof address === "string") {
+          return reject(new Error("Server address is not available."));
+        }
+        const port = address.port;
         const videoFileIndex = torrent.files.reduce((bestIdx, file, idx) => {
           const isVideo = /\.(mp4|mkv|avi|webm)$/i.test(file.name);
           if (!isVideo) return bestIdx;
@@ -17101,40 +17185,49 @@ const startTorrent = (magnetLink) => {
       });
       server.on("error", (err) => {
         console.error("[Torrent] Server error:", err);
-        reject(err);
       });
     };
     const existingTorrent = client.torrents.find((t) => {
       return t.magnetURI === magnetLink || magnetLink.includes(t.infoHash);
     });
     if (existingTorrent) {
-      console.log(`[Torrent] Found existing torrent by scanning, reusing it`);
-      createServerFromTorrent(existingTorrent);
+      console.log(`[Torrent] Found existing torrent in client`);
+      if (existingTorrent.ready) {
+        createServerFromTorrent(existingTorrent);
+      } else {
+        existingTorrent.once("ready", () => createServerFromTorrent(existingTorrent));
+      }
       return;
     }
-    console.log(`[Torrent] Adding new torrent to client`);
-    const torrentInstance = client.add(magnetLink);
-    torrentInstance.once("error", (error) => {
-      if (error.message && error.message.includes("Cannot add duplicate torrent")) {
-        console.log(`[Torrent] Caught duplicate error, extracting info hash`);
-        const match = error.message.match(/([a-f0-9]{40})/i);
-        if (match) {
-          const infoHash = match[1];
-          console.log(`[Torrent] Info hash: ${infoHash}, searching for existing torrent`);
-          const torrent = client.get(infoHash);
-          if (torrent) {
-            console.log(`[Torrent] Found existing torrent by info hash`);
-            createServerFromTorrent(torrent);
-            return;
-          }
-        }
-      }
-      console.error("[Torrent] Error adding torrent:", error);
-      reject(error);
+    const torrentInstance = client.add(magnetLink, {
+      path: cachePath
+      // Save to our persistent cache folder
+    });
+    torrentInstance.on("error", (error) => {
+      console.error("[Torrent] Torrent Error:", error);
     });
     torrentInstance.once("ready", () => {
-      console.log(`[Torrent] Torrent added successfully`);
+      console.log(`[Torrent] Metadata ready. Name: ${torrentInstance.name}`);
       createServerFromTorrent(torrentInstance);
+      let lastUpdate = 0;
+      const updateInterval = setInterval(() => {
+        if (torrentInstance.destroyed) {
+          clearInterval(updateInterval);
+          return;
+        }
+        const now = Date.now();
+        if (now - lastUpdate > 1e3) {
+          const progress = {
+            downloadSpeed: torrentInstance.downloadSpeed,
+            progress: torrentInstance.progress,
+            numPeers: torrentInstance.numPeers,
+            downloaded: torrentInstance.downloaded,
+            length: torrentInstance.length
+          };
+          torrentEmitter.emit("torrent-progress", progress);
+          lastUpdate = now;
+        }
+      }, 1e3);
     });
   });
 };
@@ -17143,7 +17236,7 @@ const stopTorrent = (magnetLink) => {
   if (torrent) {
     torrent.destroy();
     torrentServerMap.delete(magnetLink);
-    console.log(`[Torrent] Stopped and cleaned up ${magnetLink}`);
+    console.log(`[Torrent] Stopped client activity for ${magnetLink}`);
   }
 };
 async function searchTorrent(query) {
@@ -17212,6 +17305,11 @@ function createWindow() {
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
+  torrentEmitter.on("torrent-progress", (data) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("torrent-progress", data);
+    }
+  });
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
     win.setTitle("Prismo - Premium Video Player");
@@ -17222,9 +17320,13 @@ function createWindow() {
 }
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
+    cleanupCache();
     app.quit();
     win = null;
   }
+});
+app.on("will-quit", () => {
+  cleanupCache();
 });
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {

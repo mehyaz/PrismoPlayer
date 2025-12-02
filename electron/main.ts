@@ -3,8 +3,9 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { getParentsGuide, searchMovie } from './scraper'
-import { startTorrent, stopTorrent } from './torrent-handler'
+import { startTorrent, stopTorrent, cleanupCache } from './torrent-handler'
 import { searchTorrent } from './torrent-search'
+import { torrentEmitter } from './event-emitter'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -50,6 +51,13 @@ function createWindow() {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
 
+  // Forward torrent progress to the renderer
+  torrentEmitter.on('torrent-progress', (data) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('torrent-progress', data);
+    }
+  });
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
     win.setTitle('Prismo - Premium Video Player')
@@ -64,10 +72,15 @@ function createWindow() {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    cleanupCache();
     app.quit()
     win = null
   }
 })
+
+app.on('will-quit', () => {
+  cleanupCache();
+});
 
 app.on('activate', () => {
   // On OS X it's common to re-create a window in the app when the

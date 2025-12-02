@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { VideoPlayer } from './components/Player/VideoPlayer';
-import { SkipSegment, Movie, RecentlyWatchedItem } from './types';
-import { Download, Upload, FolderOpen, ShieldAlert, Clock } from 'lucide-react';
+import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress } from './types';
+import { Download, Upload, FolderOpen, ShieldAlert, Clock, Play, Magnet } from 'lucide-react';
 import { SearchModal } from './components/ContentFilter/SearchModal';
 import { ParentsGuideView } from './components/ContentFilter/ParentsGuideView';
 import { SkipCreatorModal } from './components/ContentFilter/SkipCreatorModal';
@@ -13,6 +13,15 @@ function App() {
   const [magnetLink, setMagnetLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [downloadStats, setDownloadStats] = useState<TorrentProgress | null>(null);
+
+  // Torrent progress listener
+  useEffect(() => {
+    const removeListener = window.ipcRenderer.on('torrent-progress', (_event, stats: TorrentProgress) => {
+      setDownloadStats(stats);
+    });
+    return () => removeListener();
+  }, []);
 
   // Content Filter State
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -120,21 +129,13 @@ function App() {
   };
 
   const handleTorrentStream = async () => {
-    console.log('handleTorrentStream called, magnetLink:', magnetLink);
-    if (!magnetLink) {
-      console.log('No magnet link provided');
-      return;
-    }
+    if (!magnetLink) return;
     setIsLoading(true);
     try {
-      console.log('Invoking start-torrent IPC with:', magnetLink);
       const url = await window.ipcRenderer.invoke('start-torrent', magnetLink);
-      console.log('Received streaming URL:', url);
       if (url) {
         setVideoSrc(url);
-        console.log('Video source set to:', url);
       } else {
-        console.error('No URL returned from start-torrent');
         alert('Failed to start torrent. No streaming URL received.');
       }
     } catch (error) {
@@ -150,11 +151,9 @@ function App() {
     setIsLoading(true);
     try {
       const query = `${selectedMovie.title} ${selectedMovie.year || ''}`;
-      console.log('Searching for torrent:', query);
       const magnet = await window.ipcRenderer.invoke('search-torrent', query);
       if (magnet) {
         setMagnetLink(magnet);
-        // Automatically start streaming
         const url = await window.ipcRenderer.invoke('start-torrent', magnet);
         setVideoSrc(url);
       } else {
@@ -169,7 +168,6 @@ function App() {
   };
 
   const handleMovieSelect = (movie: Movie) => {
-    console.log('Movie selected:', movie);
     setSelectedMovie(movie);
     setIsSearchOpen(false);
     setIsGuideOpen(true);
@@ -183,7 +181,6 @@ function App() {
   const handleAddSkip = (segment: SkipSegment) => {
     const newSkips = [...skipSegments, segment].sort((a, b) => a.startTime - b.startTime);
     saveSkips(newSkips);
-    console.log('Added skip segment:', segment);
   };
 
   const handleClearHistory = () => {
@@ -192,75 +189,159 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-screen bg-black flex flex-col overflow-hidden">
-      {/* Video Player or Welcome Screen */}
+    <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans">
+      {/* Main Content */}
       <div className="h-full w-full relative" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
         {videoSrc ? (
-          <VideoPlayer src={videoSrc} skipSegments={skipSegments} onTimeUpdate={setPlayerCurrentTime} />
-        ) : (
-          <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
-            <div className="text-center space-y-8 max-w-2xl px-8">
-              {/* Logo */}
-              <div className="flex items-center justify-center gap-4 mb-8">
-                <img src="/prismo-logo.png" alt="Prismo Logo" style={{ width: '80px', height: '80px', objectFit: 'contain', filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.3))' }} />
-                <h1 className="text-6xl font-bold text-white tracking-tight">Prismo</h1>
-              </div>
-
-              {/* Magnet Link Input */}
-              <div className="flex flex-col items-center space-y-4 mt-4">
-                <input
-                  type="text"
-                  placeholder="Enter magnet link"
-                  value={magnetLink}
-                  onChange={e => setMagnetLink(e.target.value)}
-                  className="w-full max-w-md p-2 rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-                <button
-                  onClick={handleTorrentStream}
-                  disabled={!magnetLink || isLoading}
-                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded disabled:opacity-50"
-                >
-                  {isLoading ? 'Loading...' : 'Start Torrent'}
-                </button>
-              </div>
-
-              {/* Drag & Drop Zone */}
-              <div className={`relative border-2 border-dashed rounded-2xl p-16 transition-all duration-300 ${isDragging ? 'border-red-500 bg-red-500/10 scale-105' : 'border-white/20 bg-white/5 hover:border-white/30 hover:bg-white/10'}`}>
-                <div className="space-y-6">
-                  <div className="flex justify-center">
-                    <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${isDragging ? 'bg-red-500/20 scale-110' : 'bg-white/10'}`}>
-                      <Upload className={`transition-all duration-300 ${isDragging ? 'text-red-500' : 'text-white/60'}`} size={48} />
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <h2 className="text-3xl font-bold text-white">{isDragging ? 'Drop your video here' : 'Drop video file here'}</h2>
-                    <p className="text-white/60 text-lg">or click below to browse</p>
-                  </div>
-                  <div className="flex gap-4 justify-center flex-wrap">
-                    <button onClick={handleFileSelect} className="px-8 py-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl font-semibold text-lg transition-all duration-200 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-3">
-                      <FolderOpen size={24} /> Browse Files
-                    </button>
-                    <button onClick={() => setIsSearchOpen(true)} className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-lg transition-all duration-200 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-3 border border-white/10">
-                      <ShieldAlert size={24} className="text-cyan-400" /> Check Content
-                    </button>
-                    <button
-                      onClick={handleFindTorrent}
-                      disabled={!selectedMovie || isLoading}
-                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold text-lg transition-all duration-200 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!selectedMovie ? "Önce bir film seçin" : "Torrent ara ve izle"}
-                    >
-                      <Download size={24} /> {isLoading ? 'Aranıyor...' : 'Torrent Bul'}
-                    </button>
-                    {recentlyWatched.length > 0 && (
-                      <button onClick={() => setIsHistoryOpen(true)} className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-semibold text-lg transition-all duration-200 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-3 border border-white/10">
-                        <Clock size={24} className="text-purple-400" /> History
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-white/40 text-sm">Supports: MP4, MKV, AVI, MOV, WEBM, and more</p>
+          <div className="relative h-full w-full bg-black animate-fade-in">
+            <VideoPlayer src={videoSrc} skipSegments={skipSegments} onTimeUpdate={setPlayerCurrentTime} />
+            {downloadStats && downloadStats.progress < 1 && (
+              <div className="absolute top-24 right-4 bg-black/60 text-white p-4 rounded-xl backdrop-blur-md border border-white/10 z-50 font-mono text-xs space-y-2 shadow-2xl select-none pointer-events-none animate-in fade-in duration-500 w-64">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Speed</span>
+                  <span className="text-cyan-400 font-bold bg-cyan-400/10 px-2 py-0.5 rounded text-[10px]">{(downloadStats.downloadSpeed / 1024 / 1024).toFixed(1)} MB/s</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Peers</span>
+                  <span className="text-purple-400 font-bold">{downloadStats.numPeers}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Progress</span>
+                  <span className="text-green-400 font-bold">{(downloadStats.progress * 100).toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-white/10 h-1.5 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(6,182,212,0.5)]"
+                    style={{ width: `${downloadStats.progress * 100}%` }}
+                  />
                 </div>
               </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black relative">
+            {/* Ambient Background */}
+            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+            
+            <div className="z-10 w-full max-w-4xl px-8 flex flex-col items-center space-y-12">
+              
+              {/* Logo Section */}
+              <div className="flex flex-col items-center gap-6 animate-fade-in">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                  <img 
+                    src="/prismo-logo.png" 
+                    alt="Prismo Logo" 
+                    className="relative w-24 h-24 object-contain drop-shadow-2xl transform transition duration-500 hover:scale-105" 
+                    style={{ width: '6rem', height: '6rem' }}
+                  />
+                </div>
+                <h1 className="text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-white/40">
+                  Prismo
+                </h1>
+                <p className="text-white/40 text-lg max-w-md text-center leading-relaxed">
+                  Advanced video player with intelligent content filtering and secure playback.
+                </p>
+              </div>
+
+              {/* Magnet Input */}
+              <div className="w-full max-w-xl relative group animate-fade-in" style={{ animationDelay: '0.1s' }}>
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                <div className="relative flex bg-black rounded-xl border border-white/10 p-1.5 items-center shadow-2xl">
+                  <div className="pl-4 text-white/30">
+                    <Magnet size={20} />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Paste magnet link to stream..."
+                    value={magnetLink}
+                    onChange={e => setMagnetLink(e.target.value)}
+                    className="w-full bg-transparent border-none text-white placeholder-white/30 focus:ring-0 px-4 py-3 outline-none font-mono text-sm"
+                  />
+                  <button
+                    onClick={handleTorrentStream}
+                    disabled={!magnetLink || isLoading}
+                    className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isLoading ? <span className="animate-pulse">Loading...</span> : <Play size={16} fill="currentColor" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full animate-fade-in" style={{ animationDelay: '0.2s' }}>
+                
+                {/* Local File */}
+                <button 
+                  onClick={handleFileSelect}
+                  className="group relative p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 text-left hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 flex flex-col gap-4"
+                >
+                  <div className="p-3 bg-red-500/10 w-fit rounded-xl text-red-400 group-hover:scale-110 transition-transform duration-300">
+                    <FolderOpen size={28} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors">Local File</h3>
+                    <p className="text-sm text-white/40 mt-1">Browse and play videos from your computer</p>
+                  </div>
+                </button>
+
+                {/* Check Content */}
+                <button 
+                  onClick={() => setIsSearchOpen(true)}
+                  className="group relative p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 text-left hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 flex flex-col gap-4"
+                >
+                  <div className="p-3 bg-cyan-500/10 w-fit rounded-xl text-cyan-400 group-hover:scale-110 transition-transform duration-300">
+                    <ShieldAlert size={28} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white group-hover:text-cyan-400 transition-colors">Check Content</h3>
+                    <p className="text-sm text-white/40 mt-1">Search IMDb guide and auto-skip scenes</p>
+                  </div>
+                </button>
+
+                {/* Find Torrent */}
+                <button 
+                  onClick={handleFindTorrent}
+                  disabled={!selectedMovie}
+                  className={`group relative p-6 rounded-2xl bg-white/5 border border-white/10 transition-all duration-300 text-left flex flex-col gap-4 ${!selectedMovie ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:-translate-y-1 hover:shadow-2xl hover:border-white/20'}`}
+                >
+                  <div className="p-3 bg-purple-500/10 w-fit rounded-xl text-purple-400 group-hover:scale-110 transition-transform duration-300">
+                    <Download size={28} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
+                      {isLoading ? 'Searching...' : 'Stream Torrent'}
+                    </h3>
+                    <p className="text-sm text-white/40 mt-1">
+                      {selectedMovie ? `Stream "${selectedMovie.title}"` : 'Select a movie first to enable'}
+                    </p>
+                  </div>
+                </button>
+
+              </div>
+              
+              {/* Drag Drop Overlay Hint */}
+              <div className={`absolute inset-0 flex items-center justify-center bg-black/90 backdrop-blur-sm z-50 transition-all duration-300 pointer-events-none ${isDragging ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+                <div className="text-center animate-bounce">
+                  <Upload size={64} className="mx-auto mb-4 text-cyan-400" />
+                  <h2 className="text-3xl font-bold text-white">Drop Video Here</h2>
+                </div>
+              </div>
+
             </div>
+            
+            {/* Footer / History */}
+            {recentlyWatched.length > 0 && (
+               <div className="absolute bottom-8 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+                 <button 
+                   onClick={() => setIsHistoryOpen(true)} 
+                   className="flex items-center gap-2 text-white/40 hover:text-white transition-colors text-sm bg-white/5 px-4 py-2 rounded-full border border-white/5 hover:border-white/20"
+                 >
+                   <Clock size={14} />
+                   <span>Continue watching ({recentlyWatched.length})</span>
+                 </button>
+               </div>
+            )}
           </div>
         )}
       </div>

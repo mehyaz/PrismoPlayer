@@ -42,3 +42,18 @@ export interface RecentlyWatchedItem {
     duration: number; // Total duration in seconds
     title?: string; // Optional title (filename or scraped title)
 }
+
+export interface TorrentProgress {
+  downloadSpeed: number;
+  progress: number;
+  numPeers: number;
+  downloaded: number;
+  length: number;
+}
+export interface TorrentProgress {
+  downloadSpeed: number;
+  progress: number;
+  numPeers: number;
+  downloaded: number;
+  length: number;
+}

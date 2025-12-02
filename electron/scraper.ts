@@ -11,6 +11,7 @@ export const getParentsGuide = async (imdbId: string): Promise<ParentsGuideItem[
     try {
         const url = `https://www.imdb.com/title/${imdbId}/parentalguide`;
         const { data } = await axios.get(url, {
+            timeout: 5000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
@@ -23,9 +24,14 @@ export const getParentsGuide = async (imdbId: string): Promise<ParentsGuideItem[
         }
         const jsonString = jsonMatch[1];
         const parsed = JSON.parse(jsonString);
-        const categories = parsed?.props?.pageProps?.contentData?.categories;
+        
+        // Try multiple paths to find categories, as IMDb changes this structure often
+        let categories = parsed?.props?.pageProps?.contentData?.categories 
+            || parsed?.props?.pageProps?.mainColumnData?.categories
+            || parsed?.props?.pageProps?.b?.categories; // Another potential path
+
         if (!Array.isArray(categories)) {
-            console.error('Categories not found in __NEXT_DATA__');
+            console.error('Categories not found in __NEXT_DATA__. Structure:', JSON.stringify(parsed?.props?.pageProps, null, 2));
             return [];
         }
         const guide: ParentsGuideItem[] = categories.map((cat: any) => {
@@ -56,6 +62,7 @@ export const searchMovie = async (query: string) => {
         console.log(`[Scraper] Fetching from API: ${url}`);
 
         const { data } = await axios.get(url, {
+            timeout: 5000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }

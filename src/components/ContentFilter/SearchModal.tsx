@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, X, Loader2, Film, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, Loader2, Film, AlertCircle, ChevronRight } from 'lucide-react';
 import { Movie } from '../../types';
 
 interface SearchModalProps {
@@ -14,7 +14,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setQuery('');
       setResults([]);
@@ -22,142 +22,142 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
-
-    setIsLoading(true);
-    setError('');
-    setResults([]);
-
-    try {
-      console.log('Searching for:', query);
-      const data = await window.ipcRenderer.invoke('search-movie', query);
-      console.log('Search results:', data);
-
-      if (Array.isArray(data)) {
-        setResults(data);
-        if (data.length === 0) {
-          setError('No results found. Try a different term.');
-        }
-      } else {
-        setError('Invalid response from server');
-      }
-    } catch (err) {
-      console.error('Search failed:', err);
-      setError('Failed to search. Please check your connection.');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!query.trim()) {
+        setResults([]);
+        setError('');
+        return;
+      }
+
+      setIsLoading(true);
+      setError('');
+      setResults([]);
+
+      try {
+        const data = await window.ipcRenderer.invoke('search-movie', query);
+        if (Array.isArray(data)) {
+          setResults(data);
+          if (data.length === 0) {
+            setError('No results found.');
+          }
+        } else {
+          setError('Invalid response from server');
+        }
+      } catch (err) {
+        console.error('Search failed:', err);
+        setError('Failed to search. Check connection.');
+      } finally {
+        setIsLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  if (!isOpen) return null;
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 200,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        backdropFilter: 'blur(4px)'
-      }}
-    >
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
       {/* Backdrop Click Handler */}
-      <div
-        style={{ position: 'absolute', inset: 0 }}
-        onClick={() => {
-          console.log('Backdrop clicked, closing modal');
-          onClose();
-        }}
-      />
+      <div className="absolute inset-0" onClick={onClose} />
 
       {/* Modal Content */}
-      <div
-        className="relative bg-gray-900/90 border border-white/10 rounded-2xl flex flex-col shadow-2xl overflow-hidden"
-        style={{
-          width: '90%',
-          maxWidth: '450px',
-          maxHeight: '70vh'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-
+      <div className="relative w-full max-w-lg bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">
+        
         {/* Header & Search */}
-        <div className="p-4 border-b border-white/10 bg-white/5 space-y-4">
+        <div className="p-5 border-b border-white/10 bg-white/5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Film className="text-cyan-400" size={18} />
-              Search IMDb
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Film className="text-cyan-400" size={20} />
+              Check Content
             </h2>
             <button
               onClick={onClose}
-              className="text-white/40 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
+              className="text-white/40 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
 
-          <form onSubmit={handleSearch} className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" size={16} />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Movie title..."
-              className="w-full bg-black/50 border border-white/10 rounded-lg py-2.5 pl-10 pr-8 text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 focus:bg-black/70 transition-all text-sm"
-              autoFocus
-            />
-            {isLoading ? (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Loader2 className="animate-spin text-cyan-500" size={16} />
-              </div>
-            ) : query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white p-0.5"
-              >
-                <X size={14} />
-              </button>
-            )}
+          <form onSubmit={handleSearch} className="relative w-full group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-xl opacity-0 group-focus-within:opacity-100 transition duration-500 blur"></div>
+            <div className="relative flex items-center bg-black border border-white/10 rounded-xl overflow-hidden">
+                <div className="pl-4 text-white/40">
+                    <Search size={18} />
+                </div>
+                <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search movie title..."
+                className="w-full bg-transparent border-none text-white placeholder-white/30 px-4 py-3 focus:ring-0 outline-none text-base"
+                autoFocus
+                />
+                {isLoading ? (
+                <div className="pr-4">
+                    <Loader2 className="animate-spin text-cyan-500" size={18} />
+                </div>
+                ) : query && (
+                <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="pr-4 text-white/20 hover:text-white transition-colors"
+                >
+                    <X size={16} />
+                </button>
+                )}
+            </div>
           </form>
         </div>
 
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-2 scrollbar-hide max-h-[50vh]">
+        <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
           {error ? (
-            <div className="flex flex-col items-center justify-center py-8 text-red-400/80 gap-2">
-              <AlertCircle size={24} />
-              <p className="text-xs">{error}</p>
+            <div className="flex flex-col items-center justify-center py-12 text-red-400/80 gap-3">
+              <AlertCircle size={32} />
+              <p className="text-sm font-medium">{error}</p>
             </div>
           ) : results.length === 0 && !isLoading ? (
-            <div className="flex flex-col items-center justify-center py-8 text-white/20 gap-2">
-              <Search size={24} />
-              <p className="text-xs">Enter a movie title</p>
+            <div className="flex flex-col items-center justify-center py-12 text-white/20 gap-3">
+              <Film size={32} strokeWidth={1.5} />
+              <p className="text-sm">Type to search movies...</p>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-1 p-1">
               {results.map((movie) => (
                 <button
                   key={movie.id}
                   onClick={() => onSelectMovie(movie)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/10 transition-all group text-left border border-transparent hover:border-white/5"
+                  className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 transition-all group text-left"
                 >
-                  <div className="min-w-0 flex-1 pr-4">
-                    <h3 className="text-sm font-medium text-white group-hover:text-cyan-400 transition-colors truncate">
+                  {/* Poster Thumbnail */}
+                  <div className="w-10 h-14 bg-white/5 rounded-md overflow-hidden flex-shrink-0 border border-white/5 group-hover:border-white/20 transition-colors relative">
+                      {movie.image ? (
+                          <img src={movie.image} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/10">
+                              <Film size={16} />
+                          </div>
+                      )}
+                  </div>
+                  
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-medium text-white group-hover:text-cyan-400 transition-colors truncate">
                       {movie.title}
                     </h3>
+                    <p className="text-sm text-white/40 mt-0.5">
+                        {movie.year || 'Unknown Year'}
+                    </p>
                   </div>
-                  <span className="text-xs font-mono text-white/40 bg-white/5 px-2 py-1 rounded group-hover:bg-white/10 transition-colors">
-                    {movie.year}
-                  </span>
+
+                  <div className="text-white/20 group-hover:text-white/60 transition-colors">
+                      <ChevronRight size={20} />
+                  </div>
                 </button>
               ))}
             </div>
