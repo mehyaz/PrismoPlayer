@@ -50,10 +50,25 @@ export interface TorrentProgress {
   downloaded: number;
   length: number;
 }
-export interface TorrentProgress {
-  downloadSpeed: number;
-  progress: number;
-  numPeers: number;
-  downloaded: number;
-  length: number;
+
+export interface AppSettings {
+    cacheLimitGB: number;
+    uploadLimitKB: number;
+    downloadsPath: string;
+}
+
+export interface SubtitleItem {
+    id: string;
+    lang: string;
+    name: string;
+    url: string;
+    rating: number;
+}
+
+export interface SubtitleTrack {
+    kind: 'subtitles';
+    src: string;
+    srcLang: string;
+    label: string;
+    default: boolean;
 }

@@ -3,9 +3,11 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { getParentsGuide, searchMovie } from './scraper'
-import { startTorrent, stopTorrent, cleanupCache } from './torrent-handler'
+import { startTorrent, stopTorrent, cleanupCache, updateTorrentSettings, clearCache, stopActiveTorrent } from './torrent-handler'
 import { searchTorrent } from './torrent-search'
 import { torrentEmitter } from './event-emitter'
+import { getSettings, saveSettings } from './settings-manager'
+import { listSubtitles, downloadSubtitle } from './subtitle-handler'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -123,8 +125,43 @@ app.whenReady().then(() => {
     return stopTorrent(magnetLink);
   });
 
-  ipcMain.handle('search-torrent', async (_, query) => {
-    return await searchTorrent(query);
+  ipcMain.handle('stop-active-torrent', async () => {
+    return stopActiveTorrent();
+  });
+
+  ipcMain.handle('search-torrent', async (_, query, quality) => {
+    return await searchTorrent(query, quality);
+  });
+
+  ipcMain.handle('list-subtitles', async (_, imdbId) => {
+    return await listSubtitles(imdbId);
+  });
+
+  ipcMain.handle('download-subtitle', async (_, item, imdbId) => {
+    return await downloadSubtitle(item, imdbId);
+  });
+
+  // --- Settings IPC ---
+  ipcMain.handle('get-settings', async () => {
+    return getSettings();
+  });
+
+  ipcMain.handle('save-settings', async (_, newSettings) => {
+    const saved = saveSettings(newSettings);
+    if (saved) {
+      // Apply changes immediately where applicable
+      updateTorrentSettings(saved);
+    }
+    return saved;
+  });
+
+  ipcMain.handle('clear-cache', async () => {
+    try {
+      return clearCache();
+    } catch (e) {
+      console.error('Failed to clear cache via IPC', e);
+      throw e;
+    }
   });
 
   createWindow();

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { VideoPlayer } from './components/Player/VideoPlayer';
-import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress } from './types';
-import { Download, Upload, FolderOpen, ShieldAlert, Clock, Play, Magnet } from 'lucide-react';
+import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem } from './types';
+import { Download, Upload, FolderOpen, ShieldAlert, Clock, Play, Magnet, Settings } from 'lucide-react';
 import { SearchModal } from './components/ContentFilter/SearchModal';
 import { ParentsGuideView } from './components/ContentFilter/ParentsGuideView';
 import { SkipCreatorModal } from './components/ContentFilter/SkipCreatorModal';
 import { RecentlyWatchedModal } from './components/ContentFilter/RecentlyWatchedModal';
+import { SettingsModal } from './components/SettingsModal';
 
 function App() {
   const [videoSrc, setVideoSrc] = useState<string>('');
@@ -14,6 +15,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [downloadStats, setDownloadStats] = useState<TorrentProgress | null>(null);
+  const [subtitleList, setSubtitleList] = useState<SubtitleItem[]>([]); // List of available subs to download
 
   // Torrent progress listener
   useEffect(() => {
@@ -28,6 +30,8 @@ function App() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isSkipCreatorOpen, setIsSkipCreatorOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [skipCreatorInitialData, setSkipCreatorInitialData] = useState<{ reason: string; severity: 'low' | 'medium' | 'high' }>({ reason: '', severity: 'medium' });
 
@@ -146,18 +150,29 @@ function App() {
     }
   };
 
-  const handleFindTorrent = async () => {
+  const handleFindTorrent = async (overrideQuality?: string) => {
     if (!selectedMovie) return;
     setIsLoading(true);
+    setSubtitleList([]); // Reset available subtitles
+    
     try {
+      // Start searching for subtitles (list only)
+      window.ipcRenderer.invoke('list-subtitles', selectedMovie.id).then(items => {
+          console.log('Subtitles listed:', items);
+          setSubtitleList(items);
+      }).catch(err => console.error('Subtitle listing failed:', err));
+
       const query = `${selectedMovie.title} ${selectedMovie.year || ''}`;
-      const magnet = await window.ipcRenderer.invoke('search-torrent', query);
+      console.log('Searching for torrent:', query, overrideQuality ? `(${overrideQuality})` : '');
+      
+      const magnet = await window.ipcRenderer.invoke('search-torrent', query, overrideQuality);
+      
       if (magnet) {
         setMagnetLink(magnet);
         const url = await window.ipcRenderer.invoke('start-torrent', magnet);
         setVideoSrc(url);
       } else {
-        alert('No torrents found for this movie.');
+        alert('No torrents found for this movie with specified quality.');
       }
     } catch (error) {
       console.error('Failed to search torrent:', error);
@@ -165,6 +180,40 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBack = async () => {
+    setVideoSrc('');
+    setDownloadStats(null);
+    setSubtitleList([]);
+    try {
+        await window.ipcRenderer.invoke('stop-active-torrent');
+    } catch (e) {
+        console.error('Failed to stop active torrent:', e);
+    }
+  };
+
+  const handleQualityChange = async (quality: string) => {
+      if (!selectedMovie) {
+          alert('Cannot switch quality: No movie context found (are you playing a direct magnet link?)');
+          return;
+      }
+      await handleBack();
+      setTimeout(() => {
+          handleFindTorrent(quality);
+      }, 100);
+  };
+
+  // Download handler passed to player
+  const handleDownloadSubtitle = async (item: SubtitleItem) => {
+      if (!selectedMovie) return null;
+      try {
+          const path = await window.ipcRenderer.invoke('download-subtitle', item, selectedMovie.id);
+          return path;
+      } catch (err) {
+          console.error('Download failed:', err);
+          return null;
+      }
   };
 
   const handleMovieSelect = (movie: Movie) => {
@@ -194,7 +243,15 @@ function App() {
       <div className="h-full w-full relative" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
         {videoSrc ? (
           <div className="relative h-full w-full bg-black animate-fade-in">
-            <VideoPlayer src={videoSrc} skipSegments={skipSegments} onTimeUpdate={setPlayerCurrentTime} />
+            <VideoPlayer 
+                src={videoSrc} 
+                skipSegments={skipSegments} 
+                onTimeUpdate={setPlayerCurrentTime}
+                onBack={handleBack}
+                onQualityChange={handleQualityChange}
+                availableSubtitles={subtitleList}
+                onDownloadSubtitle={handleDownloadSubtitle}
+            />
             {downloadStats && downloadStats.progress < 1 && (
               <div className="absolute top-24 right-4 bg-black/60 text-white p-4 rounded-xl backdrop-blur-md border border-white/10 z-50 font-mono text-xs space-y-2 shadow-2xl select-none pointer-events-none animate-in fade-in duration-500 w-64">
                 <div className="flex justify-between items-center">
@@ -220,12 +277,19 @@ function App() {
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black relative">
-            {/* Ambient Background */}
             <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
             
+            <div className="absolute top-6 right-6 z-50 animate-fade-in">
+                <button 
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all border border-white/5 hover:border-white/20 shadow-lg backdrop-blur-sm group"
+                    title="Settings"
+                >
+                    <Settings size={24} className="group-hover:rotate-90 transition-transform duration-500" />
+                </button>
+            </div>
+
             <div className="z-10 w-full max-w-4xl px-8 flex flex-col items-center space-y-12">
-              
-              {/* Logo Section */}
               <div className="flex flex-col items-center gap-6 animate-fade-in">
                 <div className="relative group">
                   <div className="absolute -inset-1 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
@@ -244,7 +308,6 @@ function App() {
                 </p>
               </div>
 
-              {/* Magnet Input */}
               <div className="w-full max-w-xl relative group animate-fade-in" style={{ animationDelay: '0.1s' }}>
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
                 <div className="relative flex bg-black rounded-xl border border-white/10 p-1.5 items-center shadow-2xl">
@@ -268,10 +331,7 @@ function App() {
                 </div>
               </div>
 
-              {/* Action Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                
-                {/* Local File */}
                 <button 
                   onClick={handleFileSelect}
                   className="group relative p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 text-left hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 flex flex-col gap-4"
@@ -285,7 +345,6 @@ function App() {
                   </div>
                 </button>
 
-                {/* Check Content */}
                 <button 
                   onClick={() => setIsSearchOpen(true)}
                   className="group relative p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 text-left hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 flex flex-col gap-4"
@@ -299,9 +358,8 @@ function App() {
                   </div>
                 </button>
 
-                {/* Find Torrent */}
                 <button 
-                  onClick={handleFindTorrent}
+                  onClick={() => handleFindTorrent()}
                   disabled={!selectedMovie}
                   className={`group relative p-6 rounded-2xl bg-white/5 border border-white/10 transition-all duration-300 text-left flex flex-col gap-4 ${!selectedMovie ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:-translate-y-1 hover:shadow-2xl hover:border-white/20'}`}
                 >
@@ -317,20 +375,16 @@ function App() {
                     </p>
                   </div>
                 </button>
-
               </div>
               
-              {/* Drag Drop Overlay Hint */}
               <div className={`absolute inset-0 flex items-center justify-center bg-black/90 backdrop-blur-sm z-50 transition-all duration-300 pointer-events-none ${isDragging ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                 <div className="text-center animate-bounce">
                   <Upload size={64} className="mx-auto mb-4 text-cyan-400" />
                   <h2 className="text-3xl font-bold text-white">Drop Video Here</h2>
                 </div>
               </div>
-
             </div>
             
-            {/* Footer / History */}
             {recentlyWatched.length > 0 && (
                <div className="absolute bottom-8 animate-fade-in" style={{ animationDelay: '0.3s' }}>
                  <button 
@@ -346,11 +400,11 @@ function App() {
         )}
       </div>
 
-      {/* Modals */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onSelectMovie={handleMovieSelect} />
       <RecentlyWatchedModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} items={recentlyWatched} onSelect={setVideoSrc} onClear={handleClearHistory} />
       <ParentsGuideView isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} imdbId={selectedMovie?.id || ''} movieTitle={selectedMovie?.title || ''} onOpenSkipCreator={handleOpenSkipCreator} />
       <SkipCreatorModal isOpen={isSkipCreatorOpen} onClose={() => setIsSkipCreatorOpen(false)} onSave={handleAddSkip} initialReason={skipCreatorInitialData.reason} currentTime={playerCurrentTime} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useSkipEngine } from '../../hooks/useSkipEngine';
-import { SkipSegment } from '../../types';
+import { SkipSegment, SubtitleItem, SubtitleTrack } from '../../types';
 import {
     Play,
     Pause,
@@ -14,7 +14,11 @@ import {
     X,
     SkipBack,
     SkipForward,
-    ArrowLeft
+    ArrowLeft,
+    Signal,
+    Check,
+    Languages,
+    Download
 } from 'lucide-react';
 
 const formatTime = (time: number) => {
@@ -28,9 +32,13 @@ interface VideoPlayerProps {
     src: string;
     skipSegments?: SkipSegment[];
     onTimeUpdate?: (time: number) => void;
+    onBack: () => void;
+    onQualityChange?: (quality: string) => void;
+    availableSubtitles: SubtitleItem[];
+    onDownloadSubtitle: (item: SubtitleItem) => Promise<string | null>;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = [], onTimeUpdate }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = [], onTimeUpdate, onBack, onQualityChange, availableSubtitles, onDownloadSubtitle }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,10 +50,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
     const [volume, setVolume] = useState(0.8);
     const [isMuted, setIsMuted] = useState(false);
     const [showControls, setShowControls] = useState(true);
-    const [showSubtitles, setShowSubtitles] = useState(false);
-    const [subtitleSrc, setSubtitleSrc] = useState<string>('');
+    const [subtitleSrc, setSubtitleSrc] = useState<string>(''); // Current active subtitle URL
+    const [activeTrackLabel, setActiveTrackLabel] = useState<string>('Off');
+    
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [selectedQuality, setSelectedQuality] = useState('1080p');
+    const [isDownloadingSub, setIsDownloadingSub] = useState(false);
 
     useSkipEngine({
         currentTime,
@@ -104,16 +115,29 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
         }
     }, []);
 
-    const toggleSubtitles = useCallback(() => setShowSubtitles((prev) => !prev), []);
-
-    const handleSubtitleSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleSubtitleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             const url = URL.createObjectURL(file);
             setSubtitleSrc(url);
-            setShowSubtitles(true);
+            setActiveTrackLabel('Custom');
+            setShowSettings(false);
         }
     }, []);
+
+    const handleSubtitleDownload = async (item: SubtitleItem) => {
+        setIsDownloadingSub(true);
+        try {
+            const path = await onDownloadSubtitle(item);
+            if (path) {
+                setSubtitleSrc(path);
+                setActiveTrackLabel(item.name);
+                setShowSettings(false);
+            }
+        } finally {
+            setIsDownloadingSub(false);
+        }
+    };
 
     const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -147,7 +171,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
 
                     if (!hasAudio) {
                         console.warn('No audio detected - video may have unsupported audio codec (AC3, DTS, etc.)');
-                        // Show a subtle warning
                         const audioWarning = document.createElement('div');
                         audioWarning.textContent = '⚠️ Audio codec not supported (e.g., AC3/DTS). Try AAC torrents.';
                         audioWarning.className = "fixed top-24 left-1/2 -translate-x-1/2 bg-orange-500/90 text-white px-4 py-2 rounded-lg z-50 text-sm font-medium shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-4";
@@ -257,6 +280,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
         }
     }, [src]);
 
+    const handleQualityClick = (quality: string) => {
+        setSelectedQuality(quality);
+        setShowSettings(false);
+        if (onQualityChange) {
+            onQualityChange(quality);
+        }
+    };
+
     return (
         <div
             ref={containerRef}
@@ -277,7 +308,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 playsInline
                 controls={false}
             >
-                {subtitleSrc && showSubtitles && <track kind="subtitles" src={subtitleSrc} srcLang="tr" default />}
+                {subtitleSrc && (
+                    <track
+                        kind="subtitles"
+                        src={subtitleSrc}
+                        srcLang="active"
+                        label="Active"
+                        default
+                    />
+                )}
                 Your browser does not support the video tag.
             </video>
 
@@ -286,7 +325,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 className={`absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 transition-opacity duration-300 flex justify-between items-center ${showControls ? 'opacity-100' : 'opacity-0'}`}
             >
                 <button 
-                    onClick={() => window.location.reload()} 
+                    onClick={onBack}
                     className="flex items-center gap-2 text-white/80 hover:text-white bg-black/20 hover:bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm transition-all border border-white/5"
                 >
                     <ArrowLeft size={20} />
@@ -294,17 +333,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                 </button>
                 
                 <div className="flex gap-3">
-                     <button 
-                        onClick={toggleSubtitles} 
-                        className={`p-2.5 rounded-full backdrop-blur-sm transition-all ${showSubtitles ? 'bg-cyan-500 text-black' : 'bg-black/20 text-white/80 hover:bg-white/20 hover:text-white'}`} 
-                        title="Subtitles"
-                    >
-                        <ClosedCaption size={20} />
-                    </button>
+                    {/* Removed subtitle button from top bar as requested */}
                     <button 
                         onClick={toggleFullscreen} 
                         className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-white backdrop-blur-sm transition-all" 
-                        title="Fullscreen"
+                        title="Tam Ekran"
                     >
                         {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                     </button>
@@ -372,10 +405,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                         
                         <div className="w-px h-6 bg-white/10 mx-2" />
 
-                        <button onClick={() => fileInputRef.current?.click()} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="Upload Subtitle">
-                            <ClosedCaption size={22} />
-                        </button>
-                        
                         <div className="relative">
                             <button onClick={() => setShowSettings((s) => !s)} className={`text-white/70 hover:text-white p-2 rounded-full transition-colors ${showSettings ? 'bg-white/10 text-white' : ''}`}>
                                 <Settings size={22} />
@@ -383,14 +412,98 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                             
                             {/* Settings Dropdown */}
                             {showSettings && (
-                                <div className="absolute bottom-full right-0 mb-4 w-56 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center">
+                                <div className="absolute bottom-full right-0 mb-4 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 max-h-96 flex flex-col">
+                                    <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center sticky top-0 bg-gray-900/95 z-10 shrink-0">
                                         <span className="font-semibold text-white text-sm">Settings</span>
                                         <button onClick={() => setShowSettings(false)} className="text-white/40 hover:text-white">
                                             <X size={16} />
                                         </button>
                                     </div>
-                                    <div className="p-1">
+                                    
+                                    <div className="p-2 space-y-1 overflow-y-auto scrollbar-hide">
+                                        {/* Quality Section */}
+                                        <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">
+                                            Stream Quality
+                                        </div>
+                                        
+                                        <button
+                                            onClick={() => handleQualityClick('1080p')}
+                                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Signal size={16} className="text-cyan-400" />
+                                                Best (1080p)
+                                            </span>
+                                            {selectedQuality === '1080p' && <Check size={14} className="text-cyan-400" />}
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleQualityClick('720p')}
+                                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Signal size={16} className="text-green-400" />
+                                                Fast (720p)
+                                            </span>
+                                            {selectedQuality === '720p' && <Check size={14} className="text-green-400" />}
+                                        </button>
+
+                                        <div className="h-px bg-white/10 my-1" />
+
+                                        {/* Subtitle Section */}
+                                        <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">
+                                            Subtitles
+                                        </div>
+                                        
+                                        <button
+                                            onClick={() => { setSubtitleSrc(''); setActiveTrackLabel('Off'); setShowSettings(false); }}
+                                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Languages size={16} className="text-red-400" />
+                                                Off
+                                            </span>
+                                            {activeTrackLabel === 'Off' && <Check size={14} className="text-red-400" />}
+                                        </button>
+
+                                        {availableSubtitles.length > 0 ? (
+                                            availableSubtitles.map(item => (
+                                                <button
+                                                    key={item.id}
+                                                    disabled={isDownloadingSub}
+                                                    onClick={() => handleSubtitleDownload(item)}
+                                                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group disabled:opacity-50"
+                                                >
+                                                    <span className="flex items-center gap-2 truncate max-w-[180px]" title={item.name}>
+                                                        <Languages size={16} className={item.lang === 'tr' ? "text-red-500 shrink-0" : "text-blue-400 shrink-0"} />
+                                                        <span className="truncate">{item.name}</span>
+                                                    </span>
+                                                    {activeTrackLabel === item.name ? (
+                                                        <Check size={14} className="text-green-400 flex-shrink-0" />
+                                                    ) : (
+                                                        <Download size={14} className="text-white/20 group-hover:text-white/60 flex-shrink-0" />
+                                                    )}
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <p className="px-3 py-2 text-sm text-white/40 italic">No online subtitles found.</p>
+                                        )}
+
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white flex items-center gap-2"
+                                        >
+                                            <ClosedCaption size={16} className="text-yellow-400" />
+                                            Upload Custom (.srt)
+                                        </button>
+                                        {activeTrackLabel === 'Custom' && (
+                                            <p className="px-3 py-1 text-xs text-white/60 flex items-center gap-1">
+                                                <Check size={12} className="text-green-400" /> Custom sub active
+                                            </p>
+                                        )}
+                                        
+                                        <div className="h-px bg-white/10 my-1" />
+
                                         <button
                                             onClick={() => {
                                                 if (videoRef.current) {
@@ -400,7 +513,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
                                                 }
                                                 setShowSettings(false);
                                             }}
-                                            className="w-full text-left px-3 py-2.5 text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors flex items-center gap-2"
+                                            className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors flex items-center gap-2"
                                         >
                                             <RotateCcw size={16} />
                                             Reset Video
@@ -414,7 +527,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, skipSegments = []
             </div>
 
             {/* Hidden file input for subtitles */}
-            <input type="file" accept=".srt,.vtt" ref={fileInputRef} onChange={handleSubtitleSelect} style={{ display: 'none' }} />
+            <input type="file" accept=".srt,.vtt" ref={fileInputRef} onChange={handleSubtitleFileSelect} style={{ display: 'none' }} />
         </div>
     );
 };

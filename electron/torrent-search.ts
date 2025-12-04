@@ -15,11 +15,9 @@ interface TorrentResult {
     imdb: string;
 }
 
-export async function searchTorrent(query: string): Promise<string | null> {
+export async function searchTorrent(query: string, quality?: string): Promise<string | null> {
     try {
-        console.log(`Searching torrents for: ${query}`);
-        // Use apibay.org to search for torrents
-        // Category 200 is Video, 201 is Movies, 207 is HD Movies
+        console.log(`Searching torrents for: ${query} (Quality Preference: ${quality || 'None'})`);
         const response = await axios.get<TorrentResult[]>(`https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=200`);
 
         const results = response.data;
@@ -29,7 +27,7 @@ export async function searchTorrent(query: string): Promise<string | null> {
             return null;
         }
 
-        // Filter and score torrents based on codec preference
+        // Filter and score torrents based on codec preference and requested quality
         const scoredResults = results.map(torrent => {
             let score = parseInt(torrent.seeders); // Base score: seeders
             const name = torrent.name.toLowerCase();
@@ -46,6 +44,18 @@ export async function searchTorrent(query: string): Promise<string | null> {
 
             // Prefer web-optimized formats
             if (name.includes('web-dl') || name.includes('webrip')) score += 30;
+
+            // --- Quality Logic ---
+            if (quality) {
+                // If user specifically asked for a quality, prioritize it heavily
+                if (name.includes(quality.toLowerCase())) {
+                    score += 10000; 
+                }
+            } else {
+                // Default logic: Prefer 1080p slightly over 720p if seeds are similar
+                if (name.includes('1080p')) score += 20;
+                if (name.includes('720p')) score += 10;
+            }
 
             return { ...torrent, score };
         });
