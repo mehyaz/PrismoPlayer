@@ -2,9 +2,10 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { spawn } from 'child_process'
 import { getParentsGuide, searchMovie } from './scraper'
 import { startTorrent, stopTorrent, cleanupCache, updateTorrentSettings, clearCache, stopActiveTorrent } from './torrent-handler'
-import { searchTorrent } from './torrent-search'
+import { searchTorrent, getTorrentList } from './torrent-search'
 import { torrentEmitter } from './event-emitter'
 import { getSettings, saveSettings } from './settings-manager'
 import { listSubtitles, downloadSubtitle } from './subtitle-handler'
@@ -13,14 +14,6 @@ const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
-//
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.mjs
-// │
 process.env.APP_ROOT = path.join(__dirname, '..')
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
@@ -69,9 +62,32 @@ function createWindow() {
   }
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Helper to open VLC
+const openInVlc = (url: string) => {
+    let command = 'vlc';
+    const args = [url];
+
+    if (process.platform === 'darwin') {
+        command = '/Applications/VLC.app/Contents/MacOS/VLC';
+    } else if (process.platform === 'win32') {
+        command = 'vlc'; 
+    }
+
+    console.log(`[VLC] Opening ${url} with ${command}`);
+    try {
+        const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+        child.on('error', (err) => {
+            console.error('[VLC] Failed to start VLC:', err);
+        });
+        child.unref();
+        return true;
+    } catch (err) {
+        console.error('[VLC] Error spawning process:', err);
+        return false;
+    }
+};
+
+// Quit when all windows are closed
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     cleanupCache();
@@ -85,8 +101,6 @@ app.on('will-quit', () => {
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
@@ -107,6 +121,10 @@ app.whenReady().then(() => {
       return result.filePaths[0];
     }
     return null;
+  });
+
+  ipcMain.handle('open-in-vlc', async (_, url) => {
+    return openInVlc(url);
   });
 
   ipcMain.handle('search-movie', async (_, query) => {
@@ -131,6 +149,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('search-torrent', async (_, query, quality) => {
     return await searchTorrent(query, quality);
+  });
+
+  ipcMain.handle('list-torrents', async (_, query) => {
+    return await getTorrentList(query);
   });
 
   ipcMain.handle('list-subtitles', async (_, imdbId) => {

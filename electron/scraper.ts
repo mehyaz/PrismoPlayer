@@ -74,8 +74,9 @@ export const searchMovie = async (query: string) => {
         }
 
         const results = data.d.map((item: any) => {
-            // Filter for movies/series if needed, but for now take all relevant items
-            if (!item.id || !item.l) return null;
+            // Filter: Only accept items with an ID starting with 'tt' (titles)
+            // Exclude 'nm' (names/people) and others
+            if (!item.id || !item.id.startsWith('tt') || !item.l) return null;
 
             return {
                 id: item.id,

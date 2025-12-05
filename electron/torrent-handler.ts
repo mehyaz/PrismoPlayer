@@ -188,11 +188,11 @@ export const startTorrent = (magnetLink: string): Promise<string> => {
 
                 server.on('error', (err: Error) => {
                     console.error('[Torrent] Server error:', err);
-                    // If server fails (e.g. port issue), we might reject, but usually retry handled by OS for port 0
+                    // Don't reject here as server might retry or it might be non-fatal
+                    // But if fatal, we should probably handle it.
                 });
             } catch (err) {
                 console.error('[Torrent] Error creating server:', err);
-                // If we can't create server, we can't stream
                 reject(err);
             }
         };
@@ -226,6 +226,8 @@ export const startTorrent = (magnetLink: string): Promise<string> => {
                     }
                 }
                 console.error('[Torrent] Torrent Error:', error);
+                // IMPORTANT: Reject the promise so frontend doesn't hang
+                reject(error);
             });
 
             torrentInstance.once('ready', () => {

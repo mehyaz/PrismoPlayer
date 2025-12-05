@@ -26,6 +26,7 @@ export interface SubtitleItem {
     name: string;
     url: string;
     rating: number;
+    source: 'YIFY';
 }
 
 const srtToVtt = (srt: string): string => {
@@ -36,14 +37,14 @@ const srtToVtt = (srt: string): string => {
     return vtt;
 };
 
-// 1. List available subtitles (Filtered & Sorted)
-export const listSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => {
+// --- Providers ---
+
+const listYIFY = async (imdbId: string): Promise<SubtitleItem[]> => {
     const url = `https://yifysubtitles.org/movie-imdb/${imdbId}`;
-    const trItems: SubtitleItem[] = [];
-    const enItems: SubtitleItem[] = [];
+    const items: SubtitleItem[] = [];
 
     try {
-        console.log(`[Subtitles] Listing from: ${url}`);
+        console.log(`[YIFY] Listing from: ${url}`);
         const { data } = await axios.get(url, { ...AXIOS_CONFIG, responseType: 'text' });
         const $ = cheerio.load(data);
 
@@ -54,114 +55,118 @@ export const listSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => 
             const rating = parseInt(ratingText) || 0;
             
             let link = $(el).find('.download-cell a').attr('href');
-            if (!link) {
-                link = $(el).find('a[href^="/subtitles/"]').attr('href');
-            }
+            if (!link) link = $(el).find('a[href^="/subtitles/"]').attr('href');
             
-            if (link) {
+            // Debug log for languages found
+            // console.log(`[YIFY] Found row: ${lang}`);
+
+            if (link && (langLower.includes('turkish') || langLower.includes('english'))) {
                 const fullLink = link.startsWith('http') ? link : `https://yifysubtitles.org${link}`;
                 
                 let releaseName = $(el).find('a[href^="/subtitles/"]').text().replace('subtitle', '').trim();
                 if (!releaseName) releaseName = `${lang} (Rating: ${rating})`;
                 else {
-                    // Clean up release name
                     releaseName = releaseName.replace(/^subtitle\s+/i, '').trim();
-                    // Truncate if too long
                     if (releaseName.length > 40) releaseName = releaseName.substring(0, 37) + '...';
                 }
 
-                const id = Buffer.from(fullLink).toString('base64');
-                const item: SubtitleItem = {
-                    id,
+                items.push({
+                    id: Buffer.from(fullLink).toString('base64'),
                     lang: langLower.includes('turkish') ? 'tr' : 'en',
                     name: `${lang === 'Turkish' ? '🇹🇷' : '🇺🇸'} ${releaseName} (★${rating})`,
                     url: fullLink,
-                    rating
-                };
-
-                if (langLower.includes('turkish')) {
-                    trItems.push(item);
-                } else if (langLower.includes('english')) {
-                    enItems.push(item);
-                }
+                    rating,
+                    source: 'YIFY'
+                });
             }
         });
-
-        // Sort by rating descending
-        trItems.sort((a, b) => b.rating - a.rating);
-        enItems.sort((a, b) => b.rating - a.rating);
-
-        // Take top 5 from each
-        const topTr = trItems.slice(0, 5);
-        const topEn = enItems.slice(0, 5);
-
-        console.log(`[Subtitles] Found ${trItems.length} TR, ${enItems.length} EN. Returning top results.`);
-        
-        // Return merged list: Turkish first
-        return [...topTr, ...topEn];
-
+        return items;
     } catch (error) {
-        console.error('[Subtitles] Error listing subtitles:', error);
+        console.error('[YIFY] Error:', error);
         return [];
     }
 };
 
+// TA is temporarily disabled due to scraping issues
+/*
+const listTA = async (imdbId: string): Promise<SubtitleItem[]> => { ... }
+*/
+
+// --- Aggregator ---
+
+export const listSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => {
+    console.log(`[Subtitles] Aggregating for ${imdbId}`);
+    
+    // Only YIFY for now
+    const yify = await listYIFY(imdbId);
+    
+    // Sort: TR first, then Rating
+    return yify.sort((a, b) => {
+        if (a.lang === 'tr' && b.lang !== 'tr') return -1;
+        if (a.lang !== 'tr' && b.lang === 'tr') return 1;
+        return b.rating - a.rating;
+    });
+};
+
 export const downloadSubtitle = async (item: SubtitleItem, imdbId: string): Promise<string | null> => {
     try {
-        console.log(`[Subtitles] Fetching detail page: ${item.url}`);
-        const { data: detailData } = await axios.get(item.url, { ...AXIOS_CONFIG, responseType: 'text' });
-        const $ = cheerio.load(detailData);
+        let zipUrl = '';
         
-        let zipLink = $('a.btn-icon.download-subtitle').attr('href') || 
-                      $('a.download-subtitle').attr('href');
-        
-        if (!zipLink) {
-             $('a').each((_, el) => {
-                const h = $(el).attr('href');
-                if (h && h.endsWith('.zip')) {
-                    zipLink = h;
-                    return false;
-                }
-            });
+        if (item.source === 'YIFY') {
+            const { data } = await axios.get(item.url, { ...AXIOS_CONFIG, responseType: 'text' });
+            const $ = cheerio.load(data);
+            zipUrl = $('a.btn-icon.download-subtitle').attr('href') || 
+                     $('a.download-subtitle').attr('href') || '';
+            
+            if (!zipUrl) {
+                 $('a').each((_, el) => {
+                    const h = $(el).attr('href');
+                    if (h && h.endsWith('.zip')) { zipUrl = h; return false; }
+                });
+            }
+            if (zipUrl && !zipUrl.startsWith('http')) zipUrl = `https://yifysubtitles.org${zipUrl}`;
         }
 
-        if (!zipLink) {
-            console.error('[Subtitles] ZIP link not found on detail page.');
-            return null;
+        if (zipUrl) {
+            console.log(`[Subtitles] Downloading ZIP: ${zipUrl}`);
+            const { data: zipData } = await axios.get(zipUrl, { ...AXIOS_CONFIG });
+            return processZipBuffer(zipData, item.lang, imdbId, item.source);
         }
+        
+        return null;
 
-        const fullZipLink = zipLink.startsWith('http') ? zipLink : `https://yifysubtitles.org${zipLink}`;
-        console.log(`[Subtitles] Downloading ZIP: ${fullZipLink}`);
+    } catch (error) {
+        console.error('[Subtitles] Download failed:', error);
+        return null;
+    }
+};
 
-        const { data: zipData } = await axios.get(fullZipLink, { ...AXIOS_CONFIG });
-        const zip = new AdmZip(Buffer.from(zipData));
+const processZipBuffer = (buffer: Buffer, lang: string, imdbId: string, source: string): string | null => {
+    try {
+        const zip = new AdmZip(buffer);
         const zipEntries = zip.getEntries();
-
         const srtEntry = zipEntries.find(entry => entry.entryName.endsWith('.srt'));
-        if (!srtEntry) {
-            console.error('[Subtitles] SRT not found in zip.');
-            return null;
-        }
+        
+        if (!srtEntry) return null;
 
-        const buffer = srtEntry.getData();
-        const detected = jschardet.detect(buffer);
+        const srtBuffer = srtEntry.getData();
+        const detected = jschardet.detect(srtBuffer);
         let encoding = detected.encoding || 'utf-8';
         
-        if (item.lang === 'tr' && (encoding === 'windows-1252' || encoding === 'ISO-8859-1')) {
+        if (lang === 'tr' && (encoding === 'windows-1252' || encoding === 'ISO-8859-1')) {
             encoding = 'windows-1254';
         }
 
-        const srtData = iconv.decode(buffer, encoding);
+        const srtData = iconv.decode(srtBuffer, encoding);
         const vttData = srtToVtt(srtData);
 
-        const filename = `${imdbId}-${item.id}.vtt`;
+        const filename = `${imdbId}-${lang}-${source}-${Date.now()}.vtt`;
         const filePath = path.join(SUBS_CACHE_DIR, filename);
         fs.writeFileSync(filePath, vttData);
         
         return `file://${filePath}`;
-
-    } catch (error) {
-        console.error('[Subtitles] Download failed:', error);
+    } catch (e) {
+        console.error(e);
         return null;
     }
 };

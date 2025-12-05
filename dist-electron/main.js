@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path$1 from "node:path";
+import { spawn } from "child_process";
 import require$$1$1 from "util";
 import stream, { Readable } from "stream";
 import require$$1$2 from "path";
@@ -12377,9 +12378,9 @@ var asynckit = asynckit$1;
 var setToStringTag2 = esSetTostringtag;
 var hasOwn$2 = hasown;
 var populate = populate$1;
-function FormData$1(options) {
-  if (!(this instanceof FormData$1)) {
-    return new FormData$1(options);
+function FormData$2(options) {
+  if (!(this instanceof FormData$2)) {
+    return new FormData$2(options);
   }
   this._overheadLength = 0;
   this._valueLength = 0;
@@ -12390,10 +12391,10 @@ function FormData$1(options) {
     this[option] = options[option];
   }
 }
-util$1.inherits(FormData$1, CombinedStream);
-FormData$1.LINE_BREAK = "\r\n";
-FormData$1.DEFAULT_CONTENT_TYPE = "application/octet-stream";
-FormData$1.prototype.append = function(field, value, options) {
+util$1.inherits(FormData$2, CombinedStream);
+FormData$2.LINE_BREAK = "\r\n";
+FormData$2.DEFAULT_CONTENT_TYPE = "application/octet-stream";
+FormData$2.prototype.append = function(field, value, options) {
   options = options || {};
   if (typeof options === "string") {
     options = { filename: options };
@@ -12413,7 +12414,7 @@ FormData$1.prototype.append = function(field, value, options) {
   append3(footer);
   this._trackLength(header, value, options);
 };
-FormData$1.prototype._trackLength = function(header, value, options) {
+FormData$2.prototype._trackLength = function(header, value, options) {
   var valueLength = 0;
   if (options.knownLength != null) {
     valueLength += Number(options.knownLength);
@@ -12423,7 +12424,7 @@ FormData$1.prototype._trackLength = function(header, value, options) {
     valueLength = Buffer.byteLength(value);
   }
   this._valueLength += valueLength;
-  this._overheadLength += Buffer.byteLength(header) + FormData$1.LINE_BREAK.length;
+  this._overheadLength += Buffer.byteLength(header) + FormData$2.LINE_BREAK.length;
   if (!value || !value.path && !(value.readable && hasOwn$2(value, "httpVersion")) && !(value instanceof Stream)) {
     return;
   }
@@ -12431,7 +12432,7 @@ FormData$1.prototype._trackLength = function(header, value, options) {
     this._valuesToMeasure.push(value);
   }
 };
-FormData$1.prototype._lengthRetriever = function(value, callback) {
+FormData$2.prototype._lengthRetriever = function(value, callback) {
   if (hasOwn$2(value, "fd")) {
     if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
       callback(null, value.end + 1 - (value.start ? value.start : 0));
@@ -12457,7 +12458,7 @@ FormData$1.prototype._lengthRetriever = function(value, callback) {
     callback("Unknown stream");
   }
 };
-FormData$1.prototype._multiPartHeader = function(field, value, options) {
+FormData$2.prototype._multiPartHeader = function(field, value, options) {
   if (typeof options.header === "string") {
     return options.header;
   }
@@ -12484,13 +12485,13 @@ FormData$1.prototype._multiPartHeader = function(field, value, options) {
         header = [header];
       }
       if (header.length) {
-        contents2 += prop2 + ": " + header.join("; ") + FormData$1.LINE_BREAK;
+        contents2 += prop2 + ": " + header.join("; ") + FormData$2.LINE_BREAK;
       }
     }
   }
-  return "--" + this.getBoundary() + FormData$1.LINE_BREAK + contents2 + FormData$1.LINE_BREAK;
+  return "--" + this.getBoundary() + FormData$2.LINE_BREAK + contents2 + FormData$2.LINE_BREAK;
 };
-FormData$1.prototype._getContentDisposition = function(value, options) {
+FormData$2.prototype._getContentDisposition = function(value, options) {
   var filename;
   if (typeof options.filepath === "string") {
     filename = path.normalize(options.filepath).replace(/\\/g, "/");
@@ -12503,7 +12504,7 @@ FormData$1.prototype._getContentDisposition = function(value, options) {
     return 'filename="' + filename + '"';
   }
 };
-FormData$1.prototype._getContentType = function(value, options) {
+FormData$2.prototype._getContentType = function(value, options) {
   var contentType = options.contentType;
   if (!contentType && value && value.name) {
     contentType = mime.lookup(value.name);
@@ -12518,13 +12519,13 @@ FormData$1.prototype._getContentType = function(value, options) {
     contentType = mime.lookup(options.filepath || options.filename);
   }
   if (!contentType && value && typeof value === "object") {
-    contentType = FormData$1.DEFAULT_CONTENT_TYPE;
+    contentType = FormData$2.DEFAULT_CONTENT_TYPE;
   }
   return contentType;
 };
-FormData$1.prototype._multiPartFooter = function() {
+FormData$2.prototype._multiPartFooter = function() {
   return (function(next2) {
-    var footer = FormData$1.LINE_BREAK;
+    var footer = FormData$2.LINE_BREAK;
     var lastPart = this._streams.length === 0;
     if (lastPart) {
       footer += this._lastBoundary();
@@ -12532,10 +12533,10 @@ FormData$1.prototype._multiPartFooter = function() {
     next2(footer);
   }).bind(this);
 };
-FormData$1.prototype._lastBoundary = function() {
-  return "--" + this.getBoundary() + "--" + FormData$1.LINE_BREAK;
+FormData$2.prototype._lastBoundary = function() {
+  return "--" + this.getBoundary() + "--" + FormData$2.LINE_BREAK;
 };
-FormData$1.prototype.getHeaders = function(userHeaders) {
+FormData$2.prototype.getHeaders = function(userHeaders) {
   var header;
   var formHeaders = {
     "content-type": "multipart/form-data; boundary=" + this.getBoundary()
@@ -12547,19 +12548,19 @@ FormData$1.prototype.getHeaders = function(userHeaders) {
   }
   return formHeaders;
 };
-FormData$1.prototype.setBoundary = function(boundary) {
+FormData$2.prototype.setBoundary = function(boundary) {
   if (typeof boundary !== "string") {
     throw new TypeError("FormData boundary must be a string");
   }
   this._boundary = boundary;
 };
-FormData$1.prototype.getBoundary = function() {
+FormData$2.prototype.getBoundary = function() {
   if (!this._boundary) {
     this._generateBoundary();
   }
   return this._boundary;
 };
-FormData$1.prototype.getBuffer = function() {
+FormData$2.prototype.getBuffer = function() {
   var dataBuffer = new Buffer.alloc(0);
   var boundary = this.getBoundary();
   for (var i = 0, len = this._streams.length; i < len; i++) {
@@ -12570,16 +12571,16 @@ FormData$1.prototype.getBuffer = function() {
         dataBuffer = Buffer.concat([dataBuffer, Buffer.from(this._streams[i])]);
       }
       if (typeof this._streams[i] !== "string" || this._streams[i].substring(2, boundary.length + 2) !== boundary) {
-        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData$1.LINE_BREAK)]);
+        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData$2.LINE_BREAK)]);
       }
     }
   }
   return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
 };
-FormData$1.prototype._generateBoundary = function() {
+FormData$2.prototype._generateBoundary = function() {
   this._boundary = "--------------------------" + crypto.randomBytes(12).toString("hex");
 };
-FormData$1.prototype.getLengthSync = function() {
+FormData$2.prototype.getLengthSync = function() {
   var knownLength = this._overheadLength + this._valueLength;
   if (this._streams.length) {
     knownLength += this._lastBoundary().length;
@@ -12589,14 +12590,14 @@ FormData$1.prototype.getLengthSync = function() {
   }
   return knownLength;
 };
-FormData$1.prototype.hasKnownLength = function() {
+FormData$2.prototype.hasKnownLength = function() {
   var hasKnownLength = true;
   if (this._valuesToMeasure.length) {
     hasKnownLength = false;
   }
   return hasKnownLength;
 };
-FormData$1.prototype.getLength = function(cb) {
+FormData$2.prototype.getLength = function(cb) {
   var knownLength = this._overheadLength + this._valueLength;
   if (this._streams.length) {
     knownLength += this._lastBoundary().length;
@@ -12616,7 +12617,7 @@ FormData$1.prototype.getLength = function(cb) {
     cb(null, knownLength);
   });
 };
-FormData$1.prototype.submit = function(params, cb) {
+FormData$2.prototype.submit = function(params, cb) {
   var request;
   var options;
   var defaults2 = { method: "post" };
@@ -12663,19 +12664,19 @@ FormData$1.prototype.submit = function(params, cb) {
   }).bind(this));
   return request;
 };
-FormData$1.prototype._error = function(err) {
+FormData$2.prototype._error = function(err) {
   if (!this.error) {
     this.error = err;
     this.pause();
     this.emit("error", err);
   }
 };
-FormData$1.prototype.toString = function() {
+FormData$2.prototype.toString = function() {
   return "[object FormData]";
 };
-setToStringTag2(FormData$1.prototype, "FormData");
-var form_data = FormData$1;
-const FormData$2 = /* @__PURE__ */ getDefaultExportFromCjs(form_data);
+setToStringTag2(FormData$2.prototype, "FormData");
+var form_data = FormData$2;
+const FormData$1 = /* @__PURE__ */ getDefaultExportFromCjs(form_data);
 function isVisitable(thing) {
   return utils$2.isPlainObject(thing) || utils$2.isArray(thing);
 }
@@ -12699,7 +12700,7 @@ function toFormData$1(obj, formData, options) {
   if (!utils$2.isObject(obj)) {
     throw new TypeError("target must be an object");
   }
-  formData = formData || new (FormData$2 || FormData)();
+  formData = formData || new (FormData$1 || FormData)();
   options = utils$2.toFlatObject(options, {
     metaTokens: true,
     dots: false,
@@ -12913,7 +12914,7 @@ const transitionalDefaults = {
   forcedJSONParsing: true,
   clarifyTimeoutError: false
 };
-const URLSearchParams = require$$0$2.URLSearchParams;
+const URLSearchParams$1 = require$$0$2.URLSearchParams;
 const ALPHA = "abcdefghijklmnopqrstuvwxyz";
 const DIGIT = "0123456789";
 const ALPHABET = {
@@ -12934,8 +12935,8 @@ const generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
 const platform$1 = {
   isNode: true,
   classes: {
-    URLSearchParams,
-    FormData: FormData$2,
+    URLSearchParams: URLSearchParams$1,
+    FormData: FormData$1,
     Blob: typeof Blob !== "undefined" && Blob || null
   },
   ALPHABET,
@@ -17063,7 +17064,7 @@ const searchMovie = async (query) => {
       return [];
     }
     const results = data2.d.map((item) => {
-      if (!item.id || !item.l) return null;
+      if (!item.id || !item.id.startsWith("tt") || !item.l) return null;
       return {
         id: item.id,
         title: item.l,
@@ -17285,6 +17286,7 @@ const startTorrent = (magnetLink) => {
           }
         }
         console.error("[Torrent] Torrent Error:", error);
+        reject(error);
       });
       torrentInstance.once("ready", () => {
         console.log(`[Torrent] Metadata ready. Name: ${torrentInstance.name}`);
@@ -17332,52 +17334,138 @@ const stopTorrent = (magnetLink) => {
     console.log(`[Torrent] Stopped client activity for ${magnetLink}`);
   }
 };
-async function searchTorrent(query, quality) {
+const TRACKERS = [
+  "udp://tracker.coppersurfer.tk:6969/announce",
+  "udp://tracker.openbittorrent.com:80",
+  "udp://tracker.opentrackr.org:1337",
+  "udp://tracker.leechers-paradise.org:6969",
+  "udp://tracker.dler.org:6969/announce",
+  "udp://opentracker.i2p.rocks:6969/announce",
+  "udp://47.ip-51-68-199.eu:6969/announce"
+];
+const TRACKER_STRING = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
+const calculateScore = (torrent) => {
+  let score = parseInt(torrent.seeders);
+  const name = torrent.name.toLowerCase();
+  if (name.includes("aac")) score += 100;
+  if (name.includes("x264") || name.includes("h264")) score += 50;
+  if (name.includes("x265") || name.includes("h265") || name.includes("hevc")) score += 75;
+  if (name.includes("xvid") || name.includes("divx")) score -= 50;
+  if (name.includes("web-dl") || name.includes("webrip")) score += 30;
+  if (name.includes("2160p") || name.includes("4k")) score += 40;
+  if (name.includes("1080p")) score += 30;
+  if (name.includes("720p")) score += 20;
+  return score;
+};
+const NSFW_KEYWORDS = ["porn", "xxx", "erotic", "adult", "sex", "hentai", "gay", "lesbian", "cuckold", "incest", "deepfake", "nude"];
+const NSFW_CATEGORIES_APIBAY = ["adult", "porn", "xxx"];
+const isNSFW = (torrent) => {
+  const nameLower = torrent.name.toLowerCase();
+  if (NSFW_KEYWORDS.some((keyword) => nameLower.includes(keyword))) {
+    return true;
+  }
+  if (torrent.source === "APIBay" && torrent.category) {
+    const categoryLower = torrent.category.toLowerCase();
+    if (NSFW_CATEGORIES_APIBAY.some((cat) => categoryLower.includes(cat))) {
+      return true;
+    }
+  }
+  return false;
+};
+const searchAPIBay = async (query) => {
   try {
-    console.log(`Searching torrents for: ${query} (Quality Preference: ${quality || "None"})`);
     const response = await axios.get(`https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=200`);
     const results = response.data;
     if (!results || results.length === 0 || results[0].name === "No results returned") {
-      console.log("No torrents found.");
-      return null;
+      return [];
     }
-    const scoredResults = results.map((torrent) => {
-      let score = parseInt(torrent.seeders);
-      const name = torrent.name.toLowerCase();
-      if (name.includes("aac")) score += 100;
-      if (name.includes("x264") || name.includes("h264")) score += 50;
-      if (name.includes("x265") || name.includes("h265") || name.includes("hevc")) score += 75;
-      if (name.includes("xvid") || name.includes("divx")) score -= 50;
-      if (name.includes("web-dl") || name.includes("webrip")) score += 30;
-      if (quality) {
-        if (name.includes(quality.toLowerCase())) {
-          score += 1e4;
-        }
-      } else {
-        if (name.includes("1080p")) score += 20;
-        if (name.includes("720p")) score += 10;
-      }
-      return { ...torrent, score };
-    });
-    scoredResults.sort((a, b) => b.score - a.score);
-    const bestMatch = scoredResults[0];
-    console.log(`Found torrent: ${bestMatch.name} (Seeders: ${bestMatch.seeders}, Score: ${bestMatch.score})`);
-    const trackers = [
-      "udp://tracker.coppersurfer.tk:6969/announce",
-      "udp://tracker.openbittorrent.com:80",
-      "udp://tracker.opentrackr.org:1337",
-      "udp://tracker.leechers-paradise.org:6969",
-      "udp://tracker.dler.org:6969/announce",
-      "udp://opentracker.i2p.rocks:6969/announce",
-      "udp://47.ip-51-68-199.eu:6969/announce"
-    ];
-    const trackerString = trackers.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
-    const magnetLink = `magnet:?xt=urn:btih:${bestMatch.info_hash}&dn=${encodeURIComponent(bestMatch.name)}${trackerString}`;
-    return magnetLink;
+    return results.map((t) => ({
+      id: t.id,
+      name: t.name,
+      info_hash: t.info_hash,
+      leechers: t.leechers,
+      seeders: t.seeders,
+      num_files: t.num_files,
+      size: t.size,
+      username: t.username,
+      added: t.added,
+      status: t.status,
+      category: t.category,
+      // Keep original category for filtering
+      imdb: t.imdb,
+      magnet: `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
+      score: calculateScore(t),
+      source: "APIBay"
+    })).filter((t) => !isNSFW(t));
   } catch (error) {
-    console.error("Error searching torrents:", error);
-    return null;
+    console.error("[Torrent] APIBay error:", error);
+    return [];
   }
+};
+const searchYTS = async (query) => {
+  try {
+    const response = await axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`);
+    const data2 = response.data;
+    if (!data2 || !data2.data || !data2.data.movies) {
+      return [];
+    }
+    const movies = data2.data.movies;
+    const results = [];
+    movies.forEach((movie) => {
+      if (!movie.torrents) return;
+      movie.torrents.forEach((torrent) => {
+        const name = `${movie.title} ${movie.year} ${torrent.quality} ${torrent.type} YTS`;
+        results.push({
+          id: `${movie.id}-${torrent.hash}`,
+          name,
+          info_hash: torrent.hash,
+          leechers: torrent.peers.toString(),
+          seeders: torrent.seeds.toString(),
+          num_files: "1",
+          size: torrent.size_bytes.toString(),
+          username: "YTS",
+          added: torrent.date_uploaded,
+          status: "active",
+          category: "Movies",
+          imdb: movie.imdb_code,
+          magnet: `magnet:?xt=urn:btih:${torrent.hash}&dn=${encodeURIComponent(name)}${TRACKER_STRING}`,
+          score: calculateScore({ name, seeders: torrent.seeds }),
+          source: "YTS"
+        });
+      });
+    });
+    return results.filter((t) => !isNSFW(t));
+  } catch (error) {
+    console.error("[Torrent] YTS error:", error);
+    return [];
+  }
+};
+async function getTorrentList(query) {
+  console.log(`[Torrent] Aggregating search for: ${query}`);
+  const [ytsResults, apibayResults] = await Promise.all([
+    searchYTS(query),
+    searchAPIBay(query)
+  ]);
+  console.log(`[Torrent] Found: YTS (${ytsResults.length}), APIBay (${apibayResults.length})`);
+  const allResults = [...ytsResults, ...apibayResults];
+  const uniqueResultsMap = /* @__PURE__ */ new Map();
+  allResults.forEach((torrent) => {
+    var _a2;
+    if (!uniqueResultsMap.has(torrent.info_hash) || (torrent.score || 0) > (((_a2 = uniqueResultsMap.get(torrent.info_hash)) == null ? void 0 : _a2.score) || 0)) {
+      uniqueResultsMap.set(torrent.info_hash, torrent);
+    }
+  });
+  const uniqueResults = Array.from(uniqueResultsMap.values());
+  return uniqueResults.sort((a, b) => (b.score || 0) - (a.score || 0));
+}
+async function searchTorrent(query, quality) {
+  const results = await getTorrentList(query);
+  if (results.length === 0) return null;
+  if (quality) {
+    const qualityMatch = results.find((t) => t.name.toLowerCase().includes(quality.toLowerCase()));
+    if (qualityMatch) return qualityMatch.magnet;
+  }
+  return results[0].magnet || null;
 }
 const defaultOpts$2 = {
   xml: false,
@@ -19956,7 +20044,7 @@ function parseSelector(subselects2, selector, selectorIndex) {
   finalizeSubselector();
   return selectorIndex;
 }
-var boolbase = {
+var boolbase$1 = {
   trueFunc: function trueFunc() {
     return true;
   },
@@ -19964,7 +20052,7 @@ var boolbase = {
     return false;
   }
 };
-const boolbase$1 = /* @__PURE__ */ getDefaultExportFromCjs(boolbase);
+const boolbase = /* @__PURE__ */ getDefaultExportFromCjs(boolbase$1);
 const procedure = /* @__PURE__ */ new Map([
   [SelectorType.Universal, 50],
   [SelectorType.Tag, 30],
@@ -20114,7 +20202,7 @@ const attributeRules = {
     const { adapter: adapter2 } = options;
     const { name, value } = data2;
     if (/\s/.test(value)) {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     const regex = new RegExp(`(?:^|\\s)${escapeRegex(value)}(?:$|\\s)`, shouldIgnoreCase(data2, options) ? "i" : "");
     return function element(elem) {
@@ -20131,7 +20219,7 @@ const attributeRules = {
     let { value } = data2;
     const len = value.length;
     if (len === 0) {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       value = value.toLowerCase();
@@ -20151,7 +20239,7 @@ const attributeRules = {
     let { value } = data2;
     const len = -value.length;
     if (len === 0) {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       value = value.toLowerCase();
@@ -20169,7 +20257,7 @@ const attributeRules = {
     const { adapter: adapter2 } = options;
     const { name, value } = data2;
     if (value === "") {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       const regex = new RegExp(escapeRegex(value), "i");
@@ -20258,13 +20346,13 @@ function compile(parsed) {
   const a = parsed[0];
   const b = parsed[1] - 1;
   if (b < 0 && a <= 0)
-    return boolbase$1.falseFunc;
+    return boolbase.falseFunc;
   if (a === -1)
     return (index2) => index2 <= b;
   if (a === 0)
     return (index2) => index2 === b;
   if (a === 1)
-    return b < 0 ? boolbase$1.trueFunc : (index2) => index2 >= b;
+    return b < 0 ? boolbase.trueFunc : (index2) => index2 >= b;
   const absA = Math.abs(a);
   const bMod = (b % absA + absA) % absA;
   return a > 1 ? (index2) => index2 >= b && index2 % absA === bMod : (index2) => index2 <= b && index2 % absA === bMod;
@@ -20293,9 +20381,9 @@ const filters = {
   // Location specific methods
   "nth-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthChild(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -20312,9 +20400,9 @@ const filters = {
   },
   "nth-last-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthLastChild(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -20331,9 +20419,9 @@ const filters = {
   },
   "nth-of-type"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthOfType(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -20351,9 +20439,9 @@ const filters = {
   },
   "nth-last-of-type"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthLastOfType(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -20394,7 +20482,7 @@ function dynamicStatePseudo(name) {
   return function dynamicPseudo(next2, _rule, { adapter: adapter2 }) {
     const func = adapter2[name];
     if (typeof func !== "function") {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     return function active(elem) {
       return func(elem) && next2(elem);
@@ -20501,8 +20589,8 @@ const aliases = {
 };
 const PLACEHOLDER_ELEMENT = {};
 function ensureIsTag(next2, adapter2) {
-  if (next2 === boolbase$1.falseFunc)
-    return boolbase$1.falseFunc;
+  if (next2 === boolbase.falseFunc)
+    return boolbase.falseFunc;
   return (elem) => adapter2.isTag(elem) && next2(elem);
 }
 function getNextSiblings(elem, adapter2) {
@@ -20528,7 +20616,7 @@ function copyOptions(options) {
 }
 const is$2 = (next2, token, options, context, compileToken2) => {
   const func = compileToken2(token, copyOptions(options), context);
-  return func === boolbase$1.trueFunc ? next2 : func === boolbase$1.falseFunc ? boolbase$1.falseFunc : (elem) => func(elem) && next2(elem);
+  return func === boolbase.trueFunc ? next2 : func === boolbase.falseFunc ? boolbase.falseFunc : (elem) => func(elem) && next2(elem);
 };
 const subselects = {
   is: is$2,
@@ -20539,7 +20627,7 @@ const subselects = {
   where: is$2,
   not(next2, token, options, context, compileToken2) {
     const func = compileToken2(token, copyOptions(options), context);
-    return func === boolbase$1.falseFunc ? next2 : func === boolbase$1.trueFunc ? boolbase$1.falseFunc : (elem) => !func(elem) && next2(elem);
+    return func === boolbase.falseFunc ? next2 : func === boolbase.trueFunc ? boolbase.falseFunc : (elem) => !func(elem) && next2(elem);
   },
   has(next2, subselect, options, _context, compileToken2) {
     const { adapter: adapter2 } = options;
@@ -20550,10 +20638,10 @@ const subselects = {
       [PLACEHOLDER_ELEMENT]
     ) : void 0;
     const compiled = compileToken2(subselect, opts, context);
-    if (compiled === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
+    if (compiled === boolbase.falseFunc)
+      return boolbase.falseFunc;
     const hasElement = ensureIsTag(compiled, adapter2);
-    if (context && compiled !== boolbase$1.trueFunc) {
+    if (context && compiled !== boolbase.trueFunc) {
       const { shouldTestNextSiblings = false } = compiled;
       return (elem) => {
         if (!next2(elem))
@@ -20779,19 +20867,19 @@ function compileToken(token, options, context) {
       }
     }
     return compileRules(rules, options, finalContext);
-  }).reduce(reduceRules, boolbase$1.falseFunc);
+  }).reduce(reduceRules, boolbase.falseFunc);
   query.shouldTestNextSiblings = shouldTestNextSiblings;
   return query;
 }
 function compileRules(rules, options, context) {
   var _a2;
-  return rules.reduce((previous, rule) => previous === boolbase$1.falseFunc ? boolbase$1.falseFunc : compileGeneralSelector(previous, rule, options, context, compileToken), (_a2 = options.rootFunc) !== null && _a2 !== void 0 ? _a2 : boolbase$1.trueFunc);
+  return rules.reduce((previous, rule) => previous === boolbase.falseFunc ? boolbase.falseFunc : compileGeneralSelector(previous, rule, options, context, compileToken), (_a2 = options.rootFunc) !== null && _a2 !== void 0 ? _a2 : boolbase.trueFunc);
 }
 function reduceRules(a, b) {
-  if (b === boolbase$1.falseFunc || a === boolbase$1.trueFunc) {
+  if (b === boolbase.falseFunc || a === boolbase.trueFunc) {
     return a;
   }
-  if (a === boolbase$1.falseFunc || b === boolbase$1.trueFunc) {
+  if (a === boolbase.falseFunc || b === boolbase.trueFunc) {
     return b;
   }
   return function combine(elem) {
@@ -21031,8 +21119,8 @@ function findFilterElements(root2, selector, options, queryForSelector, totalLim
        */
       rootFunc: (el) => result.includes(el)
     };
-  } else if (options.rootFunc && options.rootFunc !== boolbase.trueFunc) {
-    options = { ...options, rootFunc: boolbase.trueFunc };
+  } else if (options.rootFunc && options.rootFunc !== boolbase$1.trueFunc) {
+    options = { ...options, rootFunc: boolbase$1.trueFunc };
   }
   return remainingSelector.some(isFilter) ? findFilterElements(result, remainingSelector, options, false, totalLimit) : remainingHasTraversal ? (
     // Query existing elements to resolve traversal.
@@ -21055,7 +21143,7 @@ function filterElements(elements, sel, options) {
   if (els.length === 0)
     return els;
   const query = _compileToken(sel, options);
-  return query === boolbase.trueFunc ? els : els.filter(query);
+  return query === boolbase$1.trueFunc ? els : els.filter(query);
 }
 const reSiblingSelector = /^\s*[~+]/;
 function find(selectorOrHaystack) {
@@ -124592,8 +124680,8 @@ function runUniversalDetector(buffer2, options) {
   u.close();
   return u;
 }
-var jschardet = src;
-const jschardet$1 = /* @__PURE__ */ getDefaultExportFromCjs(jschardet);
+var jschardet$1 = src;
+const jschardet = /* @__PURE__ */ getDefaultExportFromCjs(jschardet$1);
 const SUBS_CACHE_DIR = require$$1$2.join(app.getPath("userData"), "PrismoPlayerSubs");
 if (!fs$1.existsSync(SUBS_CACHE_DIR)) {
   fs$1.mkdirSync(SUBS_CACHE_DIR, { recursive: true });
@@ -124609,12 +124697,11 @@ const srtToVtt = (srt) => {
   vtt += srt.replace(/\{[\\/iub]\d?\}|\{\[iub]\d?\}/g, "").replace(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/g, "$1:$2:$3.$4");
   return vtt;
 };
-const listSubtitles = async (imdbId) => {
+const listYIFY = async (imdbId) => {
   const url2 = `https://yifysubtitles.org/movie-imdb/${imdbId}`;
-  const trItems = [];
-  const enItems = [];
+  const items = [];
   try {
-    console.log(`[Subtitles] Listing from: ${url2}`);
+    console.log(`[YIFY] Listing from: ${url2}`);
     const { data: data2 } = await axios.get(url2, { ...AXIOS_CONFIG, responseType: "text" });
     const $2 = load(data2);
     $2("tbody tr").each((_, el) => {
@@ -124623,10 +124710,8 @@ const listSubtitles = async (imdbId) => {
       const ratingText = $2(el).find(".rating-cell").text().trim();
       const rating = parseInt(ratingText) || 0;
       let link = $2(el).find(".download-cell a").attr("href");
-      if (!link) {
-        link = $2(el).find('a[href^="/subtitles/"]').attr("href");
-      }
-      if (link) {
+      if (!link) link = $2(el).find('a[href^="/subtitles/"]').attr("href");
+      if (link && (langLower.includes("turkish") || langLower.includes("english"))) {
         const fullLink = link.startsWith("http") ? link : `https://yifysubtitles.org${link}`;
         let releaseName = $2(el).find('a[href^="/subtitles/"]').text().replace("subtitle", "").trim();
         if (!releaseName) releaseName = `${lang} (Rating: ${rating})`;
@@ -124634,75 +124719,80 @@ const listSubtitles = async (imdbId) => {
           releaseName = releaseName.replace(/^subtitle\s+/i, "").trim();
           if (releaseName.length > 40) releaseName = releaseName.substring(0, 37) + "...";
         }
-        const id = Buffer.from(fullLink).toString("base64");
-        const item = {
-          id,
+        items.push({
+          id: Buffer.from(fullLink).toString("base64"),
           lang: langLower.includes("turkish") ? "tr" : "en",
           name: `${lang === "Turkish" ? "🇹🇷" : "🇺🇸"} ${releaseName} (★${rating})`,
           url: fullLink,
-          rating
-        };
-        if (langLower.includes("turkish")) {
-          trItems.push(item);
-        } else if (langLower.includes("english")) {
-          enItems.push(item);
-        }
+          rating,
+          source: "YIFY"
+        });
       }
     });
-    trItems.sort((a, b) => b.rating - a.rating);
-    enItems.sort((a, b) => b.rating - a.rating);
-    const topTr = trItems.slice(0, 5);
-    const topEn = enItems.slice(0, 5);
-    console.log(`[Subtitles] Found ${trItems.length} TR, ${enItems.length} EN. Returning top results.`);
-    return [...topTr, ...topEn];
+    return items;
   } catch (error) {
-    console.error("[Subtitles] Error listing subtitles:", error);
+    console.error("[YIFY] Error:", error);
     return [];
   }
 };
+const listSubtitles = async (imdbId) => {
+  console.log(`[Subtitles] Aggregating for ${imdbId}`);
+  const yify = await listYIFY(imdbId);
+  return yify.sort((a, b) => {
+    if (a.lang === "tr" && b.lang !== "tr") return -1;
+    if (a.lang !== "tr" && b.lang === "tr") return 1;
+    return b.rating - a.rating;
+  });
+};
 const downloadSubtitle = async (item, imdbId) => {
   try {
-    console.log(`[Subtitles] Fetching detail page: ${item.url}`);
-    const { data: detailData } = await axios.get(item.url, { ...AXIOS_CONFIG, responseType: "text" });
-    const $2 = load(detailData);
-    let zipLink = $2("a.btn-icon.download-subtitle").attr("href") || $2("a.download-subtitle").attr("href");
-    if (!zipLink) {
-      $2("a").each((_, el) => {
-        const h = $2(el).attr("href");
-        if (h && h.endsWith(".zip")) {
-          zipLink = h;
-          return false;
-        }
-      });
+    let zipUrl = "";
+    if (item.source === "YIFY") {
+      const { data: data2 } = await axios.get(item.url, { ...AXIOS_CONFIG, responseType: "text" });
+      const $2 = load(data2);
+      zipUrl = $2("a.btn-icon.download-subtitle").attr("href") || $2("a.download-subtitle").attr("href") || "";
+      if (!zipUrl) {
+        $2("a").each((_, el) => {
+          const h = $2(el).attr("href");
+          if (h && h.endsWith(".zip")) {
+            zipUrl = h;
+            return false;
+          }
+        });
+      }
+      if (zipUrl && !zipUrl.startsWith("http")) zipUrl = `https://yifysubtitles.org${zipUrl}`;
     }
-    if (!zipLink) {
-      console.error("[Subtitles] ZIP link not found on detail page.");
-      return null;
+    if (zipUrl) {
+      console.log(`[Subtitles] Downloading ZIP: ${zipUrl}`);
+      const { data: zipData } = await axios.get(zipUrl, { ...AXIOS_CONFIG });
+      return processZipBuffer(zipData, item.lang, imdbId, item.source);
     }
-    const fullZipLink = zipLink.startsWith("http") ? zipLink : `https://yifysubtitles.org${zipLink}`;
-    console.log(`[Subtitles] Downloading ZIP: ${fullZipLink}`);
-    const { data: zipData } = await axios.get(fullZipLink, { ...AXIOS_CONFIG });
-    const zip = new AdmZip(Buffer.from(zipData));
+    return null;
+  } catch (error) {
+    console.error("[Subtitles] Download failed:", error);
+    return null;
+  }
+};
+const processZipBuffer = (buffer2, lang, imdbId, source) => {
+  try {
+    const zip = new AdmZip(buffer2);
     const zipEntries = zip.getEntries();
     const srtEntry = zipEntries.find((entry) => entry.entryName.endsWith(".srt"));
-    if (!srtEntry) {
-      console.error("[Subtitles] SRT not found in zip.");
-      return null;
-    }
-    const buffer2 = srtEntry.getData();
-    const detected = jschardet$1.detect(buffer2);
+    if (!srtEntry) return null;
+    const srtBuffer = srtEntry.getData();
+    const detected = jschardet.detect(srtBuffer);
     let encoding = detected.encoding || "utf-8";
-    if (item.lang === "tr" && (encoding === "windows-1252" || encoding === "ISO-8859-1")) {
+    if (lang === "tr" && (encoding === "windows-1252" || encoding === "ISO-8859-1")) {
       encoding = "windows-1254";
     }
-    const srtData = iconv.decode(buffer2, encoding);
+    const srtData = iconv.decode(srtBuffer, encoding);
     const vttData = srtToVtt(srtData);
-    const filename = `${imdbId}-${item.id}.vtt`;
+    const filename = `${imdbId}-${lang}-${source}-${Date.now()}.vtt`;
     const filePath = require$$1$2.join(SUBS_CACHE_DIR, filename);
     fs$1.writeFileSync(filePath, vttData);
     return `file://${filePath}`;
-  } catch (error) {
-    console.error("[Subtitles] Download failed:", error);
+  } catch (e) {
+    console.error(e);
     return null;
   }
 };
@@ -124746,6 +124836,27 @@ function createWindow() {
     win.setTitle("Prismo");
   }
 }
+const openInVlc = (url2) => {
+  let command = "vlc";
+  const args = [url2];
+  if (process.platform === "darwin") {
+    command = "/Applications/VLC.app/Contents/MacOS/VLC";
+  } else if (process.platform === "win32") {
+    command = "vlc";
+  }
+  console.log(`[VLC] Opening ${url2} with ${command}`);
+  try {
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    child.on("error", (err) => {
+      console.error("[VLC] Failed to start VLC:", err);
+    });
+    child.unref();
+    return true;
+  } catch (err) {
+    console.error("[VLC] Error spawning process:", err);
+    return false;
+  }
+};
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     cleanupCache();
@@ -124776,6 +124887,9 @@ app.whenReady().then(() => {
     }
     return null;
   });
+  ipcMain.handle("open-in-vlc", async (_, url2) => {
+    return openInVlc(url2);
+  });
   ipcMain.handle("search-movie", async (_, query) => {
     return await searchMovie(query);
   });
@@ -124793,6 +124907,9 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("search-torrent", async (_, query, quality) => {
     return await searchTorrent(query, quality);
+  });
+  ipcMain.handle("list-torrents", async (_, query) => {
+    return await getTorrentList(query);
   });
   ipcMain.handle("list-subtitles", async (_, imdbId) => {
     return await listSubtitles(imdbId);

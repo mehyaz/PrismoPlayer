@@ -1,64 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Search, X, Loader2, Film, AlertCircle, ChevronRight } from 'lucide-react';
+import React from 'react';
+import { X, Film, AlertCircle, ChevronRight, Search, Loader2 } from 'lucide-react';
 import { Movie } from '../../types';
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectMovie: (movie: Movie) => void;
+  results: Movie[];
+  query: string;
+  isLoading: boolean;
+  error?: string;
 }
 
-export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSelectMovie }) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Movie[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setResults([]);
-      setError('');
-    }
-  }, [isOpen]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (!query.trim()) {
-        setResults([]);
-        setError('');
-        return;
-      }
-
-      setIsLoading(true);
-      setError('');
-      setResults([]);
-
-      try {
-        const data = await window.ipcRenderer.invoke('search-movie', query);
-        if (Array.isArray(data)) {
-          setResults(data);
-          if (data.length === 0) {
-            setError('No results found.');
-          }
-        } else {
-          setError('Invalid response from server');
-        }
-      } catch (err) {
-        console.error('Search failed:', err);
-        setError('Failed to search. Check connection.');
-      } finally {
-        setIsLoading(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [query]);
-
+export const SearchModal: React.FC<SearchModalProps> = ({ 
+    isOpen, onClose, onSelectMovie, results, query, isLoading, error 
+}) => {
   if (!isOpen) return null;
 
   return (
@@ -69,63 +25,41 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
       {/* Modal Content */}
       <div className="relative w-full max-w-lg bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">
         
-        {/* Header & Search */}
-        <div className="p-5 border-b border-white/10 bg-white/5 space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="p-5 border-b border-white/10 bg-white/5 flex justify-between items-center">
+          <div>
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Film className="text-cyan-400" size={20} />
-              Check Content
+              <Search className="text-cyan-400" size={20} />
+              Search Results
             </h2>
-            <button
-              onClick={onClose}
-              className="text-white/40 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
-            >
-              <X size={20} />
-            </button>
+            <p className="text-xs text-white/40 mt-1">
+                for "<span className="text-white/80 font-medium">{query}</span>"
+            </p>
           </div>
-
-          <form onSubmit={handleSearch} className="relative w-full group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-xl opacity-0 group-focus-within:opacity-100 transition duration-500 blur"></div>
-            <div className="relative flex items-center bg-black border border-white/10 rounded-xl overflow-hidden">
-                <div className="pl-4 text-white/40">
-                    <Search size={18} />
-                </div>
-                <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search movie title..."
-                className="w-full bg-transparent border-none text-white placeholder-white/30 px-4 py-3 focus:ring-0 outline-none text-base"
-                autoFocus
-                />
-                {isLoading ? (
-                <div className="pr-4">
-                    <Loader2 className="animate-spin text-cyan-500" size={18} />
-                </div>
-                ) : query && (
-                <button
-                    type="button"
-                    onClick={() => setQuery('')}
-                    className="pr-4 text-white/20 hover:text-white transition-colors"
-                >
-                    <X size={16} />
-                </button>
-                )}
-            </div>
-          </form>
+          <button
+            onClick={onClose}
+            className="text-white/40 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Results List */}
         <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
-          {error ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-white/40 gap-3">
+                <Loader2 className="animate-spin text-cyan-500" size={32} />
+                <p className="text-sm">Searching IMDb...</p>
+            </div>
+          ) : error ? (
             <div className="flex flex-col items-center justify-center py-12 text-red-400/80 gap-3">
               <AlertCircle size={32} />
               <p className="text-sm font-medium">{error}</p>
             </div>
-          ) : results.length === 0 && !isLoading ? (
+          ) : results.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-white/20 gap-3">
               <Film size={32} strokeWidth={1.5} />
-              <p className="text-sm">Type to search movies...</p>
+              <p className="text-sm">No results found.</p>
             </div>
           ) : (
             <div className="space-y-1 p-1">
