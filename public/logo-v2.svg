@@ -1,0 +1,34 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#22d3ee" /> <!-- Cyan-400 -->
+            <stop offset="50%" stop-color="#818cf8" /> <!-- Violet-400 -->
+            <stop offset="100%" stop-color="#f472b6" /> <!-- Pink-400 -->
+        </linearGradient>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="glow" />
+            <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+    
+    <g filter="url(#glow)">
+        <!-- Sol Kanat -->
+        <path d="M150 100 Q 50 256 150 412 L 256 256 Z" 
+              fill="url(#grad1)" 
+              opacity="0.8" />
+        
+        <!-- Sağ Kanat (Play şeklini oluşturacak şekilde) -->
+        <path d="M150 100 L 450 256 L 150 412 Z" 
+              stroke="url(#grad1)" 
+              stroke-width="12" 
+              stroke-linejoin="round" 
+              fill="none" />
+              
+        <!-- İç Detay -->
+        <circle cx="200" cy="256" r="20" fill="white" opacity="0.9" />
+    </g>
+</svg>

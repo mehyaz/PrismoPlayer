@@ -15,7 +15,7 @@ export interface TorrentResult {
     imdb: string;
     magnet: string;
     score?: number;
-    source: string; // 'YTS', 'APIBay' etc.
+    source: string; // 'YTS', 'APIBay', 'EZTV'
 }
 
 const TRACKERS = [
@@ -48,26 +48,17 @@ const calculateScore = (torrent: any) => {
     return score;
 };
 
-// --- Content Filtering Logic ---
+// --- Content Filtering ---
 const NSFW_KEYWORDS = ['porn', 'xxx', 'erotic', 'adult', 'sex', 'hentai', 'gay', 'lesbian', 'cuckold', 'incest', 'deepfake', 'nude'];
-const NSFW_CATEGORIES_APIBAY = ['adult', 'porn', 'xxx']; // APIBay category names might vary
+const NSFW_CATEGORIES_APIBAY = ['adult', 'porn', 'xxx'];
 
 const isNSFW = (torrent: any): boolean => {
     const nameLower = torrent.name.toLowerCase();
-    
-    // Keyword check in name
-    if (NSFW_KEYWORDS.some(keyword => nameLower.includes(keyword))) {
-        return true;
-    }
-
-    // APIBay Specific Category check
+    if (NSFW_KEYWORDS.some(keyword => nameLower.includes(keyword))) return true;
     if (torrent.source === 'APIBay' && torrent.category) {
         const categoryLower = torrent.category.toLowerCase();
-        if (NSFW_CATEGORIES_APIBAY.some(cat => categoryLower.includes(cat))) {
-            return true;
-        }
+        if (NSFW_CATEGORIES_APIBAY.some(cat => categoryLower.includes(cat))) return true;
     }
-    
     return false;
 };
 
@@ -75,7 +66,7 @@ const isNSFW = (torrent: any): boolean => {
 
 const searchAPIBay = async (query: string): Promise<TorrentResult[]> => {
     try {
-        const response = await axios.get<any[]>(`https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=200`); // cat=200 is Video
+        const response = await axios.get<any[]>(`https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=0`); // cat=0 All
         const results = response.data;
 
         if (!results || results.length === 0 || results[0].name === 'No results returned') {
@@ -93,12 +84,12 @@ const searchAPIBay = async (query: string): Promise<TorrentResult[]> => {
             username: t.username,
             added: t.added,
             status: t.status,
-            category: t.category, // Keep original category for filtering
+            category: t.category, 
             imdb: t.imdb,
             magnet: `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
             score: calculateScore(t),
             source: 'APIBay'
-        })).filter(t => !isNSFW(t)); // Apply filter
+        })).filter(t => !isNSFW(t));
     } catch (error) {
         console.error('[Torrent] APIBay error:', error);
         return [];
@@ -107,7 +98,6 @@ const searchAPIBay = async (query: string): Promise<TorrentResult[]> => {
 
 const searchYTS = async (query: string): Promise<TorrentResult[]> => {
     try {
-        // YTS API v2 - Generally clean, but add keyword check just in case
         const response = await axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`);
         const data = response.data;
 
@@ -120,7 +110,6 @@ const searchYTS = async (query: string): Promise<TorrentResult[]> => {
 
         movies.forEach((movie: any) => {
             if (!movie.torrents) return;
-
             movie.torrents.forEach((torrent: any) => {
                 const name = `${movie.title} ${movie.year} ${torrent.quality} ${torrent.type} YTS`;
                 results.push({
@@ -143,28 +132,70 @@ const searchYTS = async (query: string): Promise<TorrentResult[]> => {
             });
         });
 
-        return results.filter(t => !isNSFW(t)); // Apply keyword filter
+        return results.filter(t => !isNSFW(t));
     } catch (error) {
-        console.error('[Torrent] YTS error:', error);
+        // YTS often fails or limits rate, silent fail is ok
+        return [];
+    }
+};
+
+const searchEZTV = async (imdbId: string): Promise<TorrentResult[]> => {
+    if (!imdbId.startsWith('tt')) return [];
+    const numericId = imdbId.replace('tt', '');
+    
+    try {
+        const response = await axios.get(`https://eztv.re/api/get-torrents?imdb_id=${numericId}`);
+        const data = response.data;
+        
+        if (!data || !data.torrents) return [];
+        
+        return data.torrents.map((t: any) => ({
+            id: t.id.toString(),
+            name: t.title,
+            info_hash: t.hash,
+            leechers: t.peers.toString(),
+            seeders: t.seeds.toString(),
+            num_files: '1',
+            size: t.size_bytes.toString(),
+            username: 'EZTV',
+            added: new Date(t.date_released_unix * 1000).toISOString(),
+            status: 'active',
+            category: 'Series',
+            imdb: imdbId,
+            magnet: t.magnet_url || `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(t.title)}${TRACKER_STRING}`,
+            score: calculateScore({name: t.title, seeders: t.seeds}) + 50, // Boost EZTV for series
+            source: 'EZTV'
+        })).filter((t: any) => !isNSFW(t));
+
+    } catch (error) {
+        console.error('[Torrent] EZTV error:', error);
         return [];
     }
 };
 
 // --- Aggregator ---
 
-export async function getTorrentList(query: string): Promise<TorrentResult[]> {
-    console.log(`[Torrent] Aggregating search for: ${query}`);
+export async function getTorrentList(query: string, imdbId?: string, type?: 'movie' | 'series'): Promise<TorrentResult[]> {
+    console.log(`[Torrent] Aggregating search for: ${query}, ID: ${imdbId}, Type: ${type}`);
     
-    const [ytsResults, apibayResults] = await Promise.all([
-        searchYTS(query),
-        searchAPIBay(query)
-    ]);
+    const promises = [];
+    
+    // Always search APIBay (General)
+    promises.push(searchAPIBay(query));
+    
+    // If it's a movie or unknown, try YTS
+    if (type !== 'series') {
+        promises.push(searchYTS(query));
+    }
+    
+    // If it's a series AND we have IMDb ID, try EZTV
+    if ((type === 'series' || !type) && imdbId) {
+        promises.push(searchEZTV(imdbId));
+    }
 
-    console.log(`[Torrent] Found: YTS (${ytsResults.length}), APIBay (${apibayResults.length})`);
+    const resultsArray = await Promise.all(promises);
+    const allResults = resultsArray.flat();
 
-    const allResults = [...ytsResults, ...apibayResults];
-
-    // Deduplicate by info_hash - filter out any duplicates with lower score if multiple sources provide same torrent
     const uniqueResultsMap = new Map<string, TorrentResult>();
     allResults.forEach(torrent => {
         if (!uniqueResultsMap.has(torrent.info_hash) || (torrent.score || 0) > (uniqueResultsMap.get(torrent.info_hash)?.score || 0)) {
@@ -173,12 +204,10 @@ export async function getTorrentList(query: string): Promise<TorrentResult[]> {
     });
     
     const uniqueResults = Array.from(uniqueResultsMap.values());
-
-    // Sort by score (highest first)
     return uniqueResults.sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
-// Backward compatibility (mainly for quality switch in player, which now calls getTorrentList directly)
+// Backward compatibility
 export async function searchTorrent(query: string, quality?: string): Promise<string | null> {
     const results = await getTorrentList(query);
     if (results.length === 0) return null;
@@ -188,5 +217,5 @@ export async function searchTorrent(query: string, quality?: string): Promise<st
         if (qualityMatch) return qualityMatch.magnet;
     }
 
-    return results[0].magnet || null;
+    return results[0].magnet;
 }

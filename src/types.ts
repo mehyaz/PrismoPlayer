@@ -1,60 +1,37 @@
 export interface SkipSegment {
     id: string;
-    startTime: number; // in seconds
-    endTime: number; // in seconds
-    reason: string; // e.g., "Nudity", "Violence"
+    startTime: number;
+    endTime: number;
+    reason: string;
     severity: 'low' | 'medium' | 'high';
 }
 
-export interface ContentProvider {
-    type: 'local' | 'url' | 'torrent';
-    source: string; // File path, URL, or Magnet link
-    title?: string;
-    duration?: number;
-}
-
-export interface PlayerState {
-    isPlaying: boolean;
-    currentTime: number;
-    duration: number;
-    volume: number;
-    isMuted: boolean;
-    playbackRate: number;
-}
-
-export interface Movie {
-    id: string;
+// Unified Content Type (Movie or Series)
+export interface Content {
+    id: string;       // IMDb ID (tt...)
     title: string;
     year: string;
     image: string;
+    type: 'movie' | 'series' | 'tvEpisode';
 }
 
-export interface ParentsGuideItem {
-    category: string;
-    status: string;
-    items: string[];
+// Backward compatibility for existing code
+export type Movie = Content;
+
+export interface Episode {
+    id: string;       // IMDb ID of the episode
+    title: string;
+    episodeNumber: number;
+    seasonNumber: number;
+    releaseDate: string;
+    plot: string;
+    rating: string;
+    image?: string;
 }
 
-export interface RecentlyWatchedItem {
-    path: string;
-    timestamp: number; // Last watched timestamp (Date.now())
-    progress: number; // Video progress in seconds
-    duration: number; // Total duration in seconds
-    title?: string; // Optional title (filename or scraped title)
-}
-
-export interface TorrentProgress {
-  downloadSpeed: number;
-  progress: number;
-  numPeers: number;
-  downloaded: number;
-  length: number;
-}
-
-export interface AppSettings {
-    cacheLimitGB: number;
-    uploadLimitKB: number;
-    downloadsPath: string;
+export interface Season {
+    seasonNumber: number;
+    episodes: Episode[];
 }
 
 export interface TorrentItem {
@@ -72,6 +49,7 @@ export interface TorrentItem {
     imdb: string;
     magnet: string;
     score?: number;
+    source?: string;
 }
 
 export interface SubtitleItem {
@@ -80,6 +58,7 @@ export interface SubtitleItem {
     name: string;
     url: string;
     rating: number;
+    source: 'YIFY' | 'TA';
 }
 
 export interface SubtitleTrack {
@@ -88,4 +67,30 @@ export interface SubtitleTrack {
     srcLang: string;
     label: string;
     default: boolean;
+}
+
+export interface TorrentProgress {
+  downloadSpeed: number;
+  progress: number;
+  numPeers: number;
+  downloaded: number;
+  length: number;
+}
+
+export interface AppSettings {
+    cacheLimitGB: number;
+    uploadLimitKB: number;
+    downloadsPath: string;
+}
+
+export interface RecentlyWatchedItem {
+    path: string;
+    timestamp: number;
+    progress: number;
+    duration: number;
+    title?: string;
+    // Add support for series tracking
+    imdbId?: string;
+    season?: number;
+    episode?: number;
 }

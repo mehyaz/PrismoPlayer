@@ -1,0 +1,44 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <!-- Ana Gradient: Turkuazdan Mora -->
+        <linearGradient id="prismGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#06b6d4" /> <!-- Cyan-500 -->
+            <stop offset="100%" stop-color="#8b5cf6" /> <!-- Violet-500 -->
+        </linearGradient>
+        
+        <!-- Cam/Parlaklık Efekti -->
+        <linearGradient id="shineGradient" x1="0%" y1="0%" x2="100%" y2="50%">
+            <stop offset="0%" stop-color="white" stop-opacity="0.6" />
+            <stop offset="100%" stop-color="white" stop-opacity="0.1" />
+        </linearGradient>
+
+        <!-- Glow (Dış Parlama) Filtresi -->
+        <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="15" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="
+                1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 18 -7" result="glow" />
+            <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+
+    <!-- Ana Şekil (Play/Prizma) -->
+    <g filter="url(#neonGlow)">
+        <!-- Dış Çerçeve (Hafif hat) -->
+        <path d="M130 90 L420 256 L130 422 Z" 
+              fill="url(#prismGradient)" 
+              stroke="rgba(255,255,255,0.5)" 
+              stroke-width="4" 
+              stroke-linejoin="round" />
+              
+        <!-- İç Yansıma (Kristal hissi için) -->
+        <path d="M150 130 L370 256 L150 382 Z" 
+              fill="url(#shineGradient)" 
+              fill-opacity="0.3" />
+    </g>
+</svg>

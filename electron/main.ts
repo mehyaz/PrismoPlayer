@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { spawn } from 'child_process'
-import { getParentsGuide, searchMovie } from './scraper'
+import { getParentsGuide, searchMovie, getSeriesDetails } from './scraper'
 import { startTorrent, stopTorrent, cleanupCache, updateTorrentSettings, clearCache, stopActiveTorrent } from './torrent-handler'
 import { searchTorrent, getTorrentList } from './torrent-search'
 import { torrentEmitter } from './event-emitter'
@@ -135,6 +135,10 @@ app.whenReady().then(() => {
     return await getParentsGuide(imdbId);
   });
 
+  ipcMain.handle('get-series-details', async (_, imdbId) => {
+    return await getSeriesDetails(imdbId);
+  });
+
   ipcMain.handle('start-torrent', async (_, magnetLink) => {
     return await startTorrent(magnetLink);
   });
@@ -151,8 +155,8 @@ app.whenReady().then(() => {
     return await searchTorrent(query, quality);
   });
 
-  ipcMain.handle('list-torrents', async (_, query) => {
-    return await getTorrentList(query);
+  ipcMain.handle('list-torrents', async (_, query, imdbId, type) => {
+    return await getTorrentList(query, imdbId, type);
   });
 
   ipcMain.handle('list-subtitles', async (_, imdbId) => {

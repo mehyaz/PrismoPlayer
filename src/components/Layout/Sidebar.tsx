@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Search, FolderOpen, Clock, Settings, Film } from 'lucide-react';
+import { Home, Search, FolderOpen, Clock, Settings } from 'lucide-react';
 
 interface SidebarProps {
     activeTab: string;
@@ -16,14 +16,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onSett
     ];
 
     return (
-        <div className="w-20 min-w-[5rem] h-full bg-black border-r border-white/10 flex flex-col items-center py-8 z-20 shrink-0">
-            {/* Logo Icon */}
-            <div className="mb-12 p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20">
-                <Film className="text-white" size={28} />
+        <div className="w-20 min-w-[5rem] h-full bg-black/95 border-r border-white/5 flex flex-col items-center py-6 z-20 shrink-0 backdrop-blur-sm">
+            {/* Logo */}
+            <div className="mb-10 p-2 hover:scale-110 transition-transform duration-300 cursor-default">
+                <img 
+                    src="/prismo-logo.svg" 
+                    alt="Prismo Logo" 
+                    className="w-10 h-10 object-contain drop-shadow-[0_0_15px_rgba(6,182,212,0.8)]" 
+                />
             </div>
 
             {/* Nav Items */}
-            <div className="flex-1 flex flex-col gap-8 w-full px-2 items-center">
+            <div className="flex-1 flex flex-col gap-6 w-full px-3 items-center pt-12">
                 {menuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -31,32 +35,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, onSett
                         <button
                             key={item.id}
                             onClick={() => onTabChange(item.id)}
-                            className={`relative group p-3 rounded-xl transition-all duration-300 ${
+                            className={`relative group w-full aspect-square flex flex-col items-center justify-center rounded-xl transition-all duration-300 ${
                                 isActive 
-                                    ? 'bg-white/10 text-white shadow-inner' 
+                                    ? 'bg-white/10 text-cyan-400 shadow-inner' 
                                     : 'text-white/40 hover:text-white hover:bg-white/5'
                             }`}
-                            title={item.label}
                         >
-                            <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                            <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
                             
-                            {/* Active Indicator */}
                             {isActive && (
-                                <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-6 bg-cyan-500 rounded-r-full" />
+                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-cyan-500 rounded-r-full" />
                             )}
                         </button>
                     );
                 })}
             </div>
 
-            {/* Settings (Bottom) */}
-            <div className="w-full flex justify-center pb-4">
+            {/* Settings */}
+            <div className="w-full px-3 pb-4">
                 <button
                     onClick={onSettingsClick}
-                    className="p-3 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-all duration-300"
+                    className="w-full aspect-square flex items-center justify-center rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-all duration-300"
                     title="Settings"
                 >
-                    <Settings size={24} className="group-hover:rotate-90 transition-transform duration-500" />
+                    <Settings size={22} className="group-hover:rotate-90 transition-transform duration-500" />
                 </button>
             </div>
         </div>

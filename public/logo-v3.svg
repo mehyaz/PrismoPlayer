@@ -1,0 +1,23 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="crystalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#38bdf8" /> <!-- Light Blue -->
+            <stop offset="100%" stop-color="#6366f1" /> <!-- Indigo -->
+        </linearGradient>
+        <linearGradient id="facetGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="white" stop-opacity="0.4" />
+            <stop offset="100%" stop-color="white" stop-opacity="0" />
+        </linearGradient>
+    </defs>
+
+    <!-- Ana Üçgen -->
+    <path d="M140 80 L 440 256 L 140 432 Z" fill="url(#crystalGrad)" />
+    
+    <!-- Yüzey Detayları (Facet) -->
+    <path d="M140 80 L 240 256 L 140 432 Z" fill="black" fill-opacity="0.2" />
+    <path d="M140 80 L 440 256 L 240 256 Z" fill="url(#facetGrad)" />
+    <path d="M140 432 L 440 256 L 240 256 Z" fill="white" fill-opacity="0.1" />
+    
+    <!-- Parlak Çizgi -->
+    <path d="M140 80 L 440 256" stroke="white" stroke-width="2" stroke-opacity="0.5" />
+</svg>

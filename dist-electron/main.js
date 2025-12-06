@@ -18,6 +18,7 @@ import require$$0$3 from "os";
 import zlib from "zlib";
 import { EventEmitter } from "events";
 import fs$2 from "node:fs";
+import fsPromises from "node:fs/promises";
 import require$$0$4 from "buffer";
 import require$$1$4 from "string_decoder";
 function bind$2(fn, thisArg) {
@@ -12914,7 +12915,7 @@ const transitionalDefaults = {
   forcedJSONParsing: true,
   clarifyTimeoutError: false
 };
-const URLSearchParams$1 = require$$0$2.URLSearchParams;
+const URLSearchParams = require$$0$2.URLSearchParams;
 const ALPHA = "abcdefghijklmnopqrstuvwxyz";
 const DIGIT = "0123456789";
 const ALPHABET = {
@@ -12935,7 +12936,7 @@ const generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
 const platform$1 = {
   isNode: true,
   classes: {
-    URLSearchParams: URLSearchParams$1,
+    URLSearchParams,
     FormData: FormData$1,
     Blob: typeof Blob !== "undefined" && Blob || null
   },
@@ -17007,466 +17008,6 @@ const {
   getAdapter,
   mergeConfig
 } = axios;
-const getParentsGuide = async (imdbId) => {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-  try {
-    const url2 = `https://www.imdb.com/title/${imdbId}/parentalguide`;
-    const { data: data2 } = await axios.get(url2, {
-      timeout: 5e3,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      }
-    });
-    const jsonMatch = data2.match(/<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/);
-    if (!jsonMatch) {
-      console.error("Failed to locate __NEXT_DATA__ script");
-      return [];
-    }
-    const jsonString = jsonMatch[1];
-    const parsed = JSON.parse(jsonString);
-    let categories = ((_c = (_b = (_a2 = parsed == null ? void 0 : parsed.props) == null ? void 0 : _a2.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.categories) || ((_f = (_e = (_d = parsed == null ? void 0 : parsed.props) == null ? void 0 : _d.pageProps) == null ? void 0 : _e.mainColumnData) == null ? void 0 : _f.categories) || ((_i = (_h = (_g = parsed == null ? void 0 : parsed.props) == null ? void 0 : _g.pageProps) == null ? void 0 : _h.b) == null ? void 0 : _i.categories);
-    if (!Array.isArray(categories)) {
-      console.error("Categories not found in __NEXT_DATA__. Structure:", JSON.stringify((_j = parsed == null ? void 0 : parsed.props) == null ? void 0 : _j.pageProps, null, 2));
-      return [];
-    }
-    const guide = categories.map((cat) => {
-      var _a3;
-      const title = cat.title || cat.id || "";
-      const status = ((_a3 = cat.severitySummary) == null ? void 0 : _a3.text) || "Unknown";
-      const items = Array.isArray(cat.items) ? cat.items.map((it) => it.text).filter((t) => !!t) : [];
-      return {
-        category: title,
-        status,
-        items
-      };
-    });
-    return guide;
-  } catch (error) {
-    console.error("Error fetching parents guide:", error);
-    return [];
-  }
-};
-const searchMovie = async (query) => {
-  try {
-    const cleanQuery = query.toLowerCase().trim();
-    if (!cleanQuery) return [];
-    const firstChar = cleanQuery.charAt(0);
-    const url2 = `https://v2.sg.media-imdb.com/suggestion/${firstChar}/${encodeURIComponent(cleanQuery)}.json`;
-    console.log(`[Scraper] Fetching from API: ${url2}`);
-    const { data: data2 } = await axios.get(url2, {
-      timeout: 5e3,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      }
-    });
-    if (!data2 || !data2.d) {
-      console.log("[Scraper] No data found in API response");
-      return [];
-    }
-    const results = data2.d.map((item) => {
-      if (!item.id || !item.id.startsWith("tt") || !item.l) return null;
-      return {
-        id: item.id,
-        title: item.l,
-        year: item.y ? item.y.toString() : "",
-        image: item.i ? item.i.imageUrl : ""
-      };
-    }).filter((item) => item !== null);
-    console.log(`[Scraper] Found ${results.length} results via API`);
-    return results;
-  } catch (error) {
-    console.error("Error searching movie:", error);
-    return [];
-  }
-};
-const torrentEmitter = new EventEmitter();
-const settingsPath = path$1.join(app.getPath("userData"), "settings.json");
-const defaultSettings = {
-  cacheLimitGB: 15,
-  uploadLimitKB: 2048,
-  // 2 MB/s
-  downloadsPath: path$1.join(app.getPath("userData"), "PrismoPlayerCache")
-};
-const getSettings = () => {
-  try {
-    if (fs$2.existsSync(settingsPath)) {
-      const data2 = fs$2.readFileSync(settingsPath, "utf-8");
-      return { ...defaultSettings, ...JSON.parse(data2) };
-    }
-  } catch (error) {
-    console.error("[Settings] Failed to read settings:", error);
-  }
-  return defaultSettings;
-};
-const saveSettings = (settings) => {
-  try {
-    const current = getSettings();
-    const newSettings = { ...current, ...settings };
-    fs$2.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2));
-    console.log("[Settings] Saved:", newSettings);
-    return newSettings;
-  } catch (error) {
-    console.error("[Settings] Failed to save settings:", error);
-    return null;
-  }
-};
-const require$2 = createRequire(import.meta.url);
-const WebTorrent = require$2("webtorrent");
-const CACHE_DIR_NAME = "PrismoPlayerCache";
-const cachePath = path$1.join(app.getPath("userData"), CACHE_DIR_NAME);
-if (!fs$2.existsSync(cachePath)) {
-  fs$2.mkdirSync(cachePath, { recursive: true });
-}
-const initialSettings = getSettings();
-const client = new WebTorrent({
-  uploadLimit: initialSettings.uploadLimitKB * 1024
-});
-const torrentServerMap = /* @__PURE__ */ new Map();
-let activeMagnetLink = null;
-const updateTorrentSettings = (newSettings) => {
-  if (client) {
-    client.uploadLimit = newSettings.uploadLimitKB * 1024;
-    console.log(`[Torrent] Updated upload limit to ${newSettings.uploadLimitKB} KB/s`);
-  }
-};
-const clearCache = () => {
-  try {
-    console.log("[Cache] Manual cache clear requested.");
-    client.torrents.forEach((t) => t.destroy());
-    activeMagnetLink = null;
-    if (fs$2.existsSync(cachePath)) {
-      const files = fs$2.readdirSync(cachePath);
-      for (const file of files) {
-        fs$2.rmSync(path$1.join(cachePath, file), { recursive: true, force: true });
-      }
-    }
-    console.log("[Cache] Cache cleared successfully.");
-    return true;
-  } catch (err) {
-    console.error("[Cache] Failed to clear cache:", err);
-    throw err;
-  }
-};
-const getDirSize = (dirPath) => {
-  let size = 0;
-  try {
-    if (!fs$2.existsSync(dirPath)) return 0;
-    const files = fs$2.readdirSync(dirPath);
-    for (const file of files) {
-      const filePath = path$1.join(dirPath, file);
-      const stats = fs$2.statSync(filePath);
-      if (stats.isDirectory()) {
-        size += getDirSize(filePath);
-      } else {
-        size += stats.size;
-      }
-    }
-  } catch (err) {
-    console.error(`[Cache] Error calculating size for ${dirPath}:`, err);
-  }
-  return size;
-};
-const enforceQuota = () => {
-  const settings = getSettings();
-  const maxCacheBytes = settings.cacheLimitGB * 1024 * 1024 * 1024;
-  console.log(`[Cache] Checking quota. Limit: ${settings.cacheLimitGB} GB`);
-  let currentSize = getDirSize(cachePath);
-  console.log(`[Cache] Current size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
-  if (currentSize <= maxCacheBytes) {
-    console.log("[Cache] Quota OK.");
-    return;
-  }
-  console.log("[Cache] Quota exceeded. cleaning up old files...");
-  try {
-    const items = fs$2.readdirSync(cachePath).map((file) => {
-      const filePath = path$1.join(cachePath, file);
-      return {
-        path: filePath,
-        stats: fs$2.statSync(filePath)
-      };
-    });
-    items.sort((a, b) => a.stats.mtime.getTime() - b.stats.mtime.getTime());
-    for (const item of items) {
-      if (currentSize <= maxCacheBytes) break;
-      console.log(`[Cache] Deleting old item: ${item.path}`);
-      if (item.stats.isDirectory()) {
-        const dirSize = getDirSize(item.path);
-        fs$2.rmSync(item.path, { recursive: true, force: true });
-        currentSize -= dirSize;
-      } else {
-        fs$2.unlinkSync(item.path);
-        currentSize -= item.stats.size;
-      }
-    }
-    console.log(`[Cache] Cleanup complete. New size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
-  } catch (err) {
-    console.error("[Cache] Error during quota cleanup:", err);
-  }
-};
-const cleanupCache = () => {
-  console.log("[Cache] Application closing. Destroying client and enforcing quota...");
-  client.destroy((err) => {
-    if (err) console.error("[Cache] Error destroying client:", err);
-    else console.log("[Cache] WebTorrent client destroyed.");
-    enforceQuota();
-  });
-};
-const stopActiveTorrent = () => {
-  if (activeMagnetLink) {
-    console.log(`[Torrent] Stopping active torrent: ${activeMagnetLink}`);
-    stopTorrent(activeMagnetLink);
-    activeMagnetLink = null;
-  }
-};
-const startTorrent = (magnetLink) => {
-  return new Promise((resolve, reject) => {
-    console.log(`[Torrent] startTorrent called`);
-    if (activeMagnetLink && activeMagnetLink !== magnetLink) {
-      console.log(`[Torrent] Stopping previous active torrent...`);
-      stopTorrent(activeMagnetLink);
-    }
-    activeMagnetLink = magnetLink;
-    const existingUrl = torrentServerMap.get(magnetLink);
-    if (existingUrl) {
-      console.log(`[Torrent] Reusing existing server URL: ${existingUrl}`);
-      return resolve(existingUrl);
-    }
-    const createServerFromTorrent = (torrent) => {
-      if (torrentServerMap.has(magnetLink)) {
-        return resolve(torrentServerMap.get(magnetLink));
-      }
-      try {
-        const server = torrent.createServer();
-        server.listen(0, () => {
-          const address = server.address();
-          if (!address || typeof address === "string") {
-            return reject(new Error("Server address is not available."));
-          }
-          const port = address.port;
-          const videoFileIndex = torrent.files.reduce((bestIdx, file, idx) => {
-            const isVideo = /\.(mp4|mkv|avi|webm)$/i.test(file.name);
-            if (!isVideo) return bestIdx;
-            if (bestIdx === -1) return idx;
-            return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
-          }, -1);
-          const finalUrl = `http://localhost:${port}/${videoFileIndex !== -1 ? videoFileIndex : 0}`;
-          console.log(`[Torrent] Server created at ${finalUrl}`);
-          torrentServerMap.set(magnetLink, finalUrl);
-          resolve(finalUrl);
-        });
-        server.on("error", (err) => {
-          console.error("[Torrent] Server error:", err);
-        });
-      } catch (err) {
-        console.error("[Torrent] Error creating server:", err);
-        reject(err);
-      }
-    };
-    const existingTorrent = client.get(magnetLink);
-    if (existingTorrent) {
-      console.log(`[Torrent] Found existing torrent in client (client.get)`);
-      if (existingTorrent.ready) {
-        createServerFromTorrent(existingTorrent);
-      } else {
-        existingTorrent.once("ready", () => createServerFromTorrent(existingTorrent));
-      }
-      return;
-    }
-    try {
-      const torrentInstance = client.add(magnetLink, {
-        path: cachePath
-      });
-      torrentInstance.on("error", (error) => {
-        if (error.message && error.message.includes("duplicate torrent")) {
-          console.log("[Torrent] Caught duplicate error, recovering...");
-          const existing = client.get(magnetLink);
-          if (existing) {
-            createServerFromTorrent(existing);
-            return;
-          }
-        }
-        console.error("[Torrent] Torrent Error:", error);
-        reject(error);
-      });
-      torrentInstance.once("ready", () => {
-        console.log(`[Torrent] Metadata ready. Name: ${torrentInstance.name}`);
-        createServerFromTorrent(torrentInstance);
-        let lastUpdate = 0;
-        const updateInterval = setInterval(() => {
-          if (torrentInstance.destroyed) {
-            clearInterval(updateInterval);
-            return;
-          }
-          const now = Date.now();
-          if (now - lastUpdate > 1e3) {
-            const progress = {
-              downloadSpeed: torrentInstance.downloadSpeed,
-              progress: torrentInstance.progress,
-              numPeers: torrentInstance.numPeers,
-              downloaded: torrentInstance.downloaded,
-              length: torrentInstance.length
-            };
-            torrentEmitter.emit("torrent-progress", progress);
-            lastUpdate = now;
-          }
-        }, 1e3);
-      });
-    } catch (err) {
-      if (err.message && err.message.includes("duplicate torrent")) {
-        console.log("[Torrent] Caught synchronous duplicate error, recovering...");
-        const existing = client.get(magnetLink);
-        if (existing) {
-          if (existing.ready) createServerFromTorrent(existing);
-          else existing.once("ready", () => createServerFromTorrent(existing));
-          return;
-        }
-      }
-      console.error("[Torrent] Failed to add torrent:", err);
-      reject(err);
-    }
-  });
-};
-const stopTorrent = (magnetLink) => {
-  const torrent = client.get(magnetLink);
-  if (torrent) {
-    torrent.destroy();
-    torrentServerMap.delete(magnetLink);
-    console.log(`[Torrent] Stopped client activity for ${magnetLink}`);
-  }
-};
-const TRACKERS = [
-  "udp://tracker.coppersurfer.tk:6969/announce",
-  "udp://tracker.openbittorrent.com:80",
-  "udp://tracker.opentrackr.org:1337",
-  "udp://tracker.leechers-paradise.org:6969",
-  "udp://tracker.dler.org:6969/announce",
-  "udp://opentracker.i2p.rocks:6969/announce",
-  "udp://47.ip-51-68-199.eu:6969/announce"
-];
-const TRACKER_STRING = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
-const calculateScore = (torrent) => {
-  let score = parseInt(torrent.seeders);
-  const name = torrent.name.toLowerCase();
-  if (name.includes("aac")) score += 100;
-  if (name.includes("x264") || name.includes("h264")) score += 50;
-  if (name.includes("x265") || name.includes("h265") || name.includes("hevc")) score += 75;
-  if (name.includes("xvid") || name.includes("divx")) score -= 50;
-  if (name.includes("web-dl") || name.includes("webrip")) score += 30;
-  if (name.includes("2160p") || name.includes("4k")) score += 40;
-  if (name.includes("1080p")) score += 30;
-  if (name.includes("720p")) score += 20;
-  return score;
-};
-const NSFW_KEYWORDS = ["porn", "xxx", "erotic", "adult", "sex", "hentai", "gay", "lesbian", "cuckold", "incest", "deepfake", "nude"];
-const NSFW_CATEGORIES_APIBAY = ["adult", "porn", "xxx"];
-const isNSFW = (torrent) => {
-  const nameLower = torrent.name.toLowerCase();
-  if (NSFW_KEYWORDS.some((keyword) => nameLower.includes(keyword))) {
-    return true;
-  }
-  if (torrent.source === "APIBay" && torrent.category) {
-    const categoryLower = torrent.category.toLowerCase();
-    if (NSFW_CATEGORIES_APIBAY.some((cat) => categoryLower.includes(cat))) {
-      return true;
-    }
-  }
-  return false;
-};
-const searchAPIBay = async (query) => {
-  try {
-    const response = await axios.get(`https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=200`);
-    const results = response.data;
-    if (!results || results.length === 0 || results[0].name === "No results returned") {
-      return [];
-    }
-    return results.map((t) => ({
-      id: t.id,
-      name: t.name,
-      info_hash: t.info_hash,
-      leechers: t.leechers,
-      seeders: t.seeders,
-      num_files: t.num_files,
-      size: t.size,
-      username: t.username,
-      added: t.added,
-      status: t.status,
-      category: t.category,
-      // Keep original category for filtering
-      imdb: t.imdb,
-      magnet: `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
-      score: calculateScore(t),
-      source: "APIBay"
-    })).filter((t) => !isNSFW(t));
-  } catch (error) {
-    console.error("[Torrent] APIBay error:", error);
-    return [];
-  }
-};
-const searchYTS = async (query) => {
-  try {
-    const response = await axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`);
-    const data2 = response.data;
-    if (!data2 || !data2.data || !data2.data.movies) {
-      return [];
-    }
-    const movies = data2.data.movies;
-    const results = [];
-    movies.forEach((movie) => {
-      if (!movie.torrents) return;
-      movie.torrents.forEach((torrent) => {
-        const name = `${movie.title} ${movie.year} ${torrent.quality} ${torrent.type} YTS`;
-        results.push({
-          id: `${movie.id}-${torrent.hash}`,
-          name,
-          info_hash: torrent.hash,
-          leechers: torrent.peers.toString(),
-          seeders: torrent.seeds.toString(),
-          num_files: "1",
-          size: torrent.size_bytes.toString(),
-          username: "YTS",
-          added: torrent.date_uploaded,
-          status: "active",
-          category: "Movies",
-          imdb: movie.imdb_code,
-          magnet: `magnet:?xt=urn:btih:${torrent.hash}&dn=${encodeURIComponent(name)}${TRACKER_STRING}`,
-          score: calculateScore({ name, seeders: torrent.seeds }),
-          source: "YTS"
-        });
-      });
-    });
-    return results.filter((t) => !isNSFW(t));
-  } catch (error) {
-    console.error("[Torrent] YTS error:", error);
-    return [];
-  }
-};
-async function getTorrentList(query) {
-  console.log(`[Torrent] Aggregating search for: ${query}`);
-  const [ytsResults, apibayResults] = await Promise.all([
-    searchYTS(query),
-    searchAPIBay(query)
-  ]);
-  console.log(`[Torrent] Found: YTS (${ytsResults.length}), APIBay (${apibayResults.length})`);
-  const allResults = [...ytsResults, ...apibayResults];
-  const uniqueResultsMap = /* @__PURE__ */ new Map();
-  allResults.forEach((torrent) => {
-    var _a2;
-    if (!uniqueResultsMap.has(torrent.info_hash) || (torrent.score || 0) > (((_a2 = uniqueResultsMap.get(torrent.info_hash)) == null ? void 0 : _a2.score) || 0)) {
-      uniqueResultsMap.set(torrent.info_hash, torrent);
-    }
-  });
-  const uniqueResults = Array.from(uniqueResultsMap.values());
-  return uniqueResults.sort((a, b) => (b.score || 0) - (a.score || 0));
-}
-async function searchTorrent(query, quality) {
-  const results = await getTorrentList(query);
-  if (results.length === 0) return null;
-  if (quality) {
-    const qualityMatch = results.find((t) => t.name.toLowerCase().includes(quality.toLowerCase()));
-    if (qualityMatch) return qualityMatch.magnet;
-  }
-  return results[0].magnet || null;
-}
 const defaultOpts$2 = {
   xml: false,
   decodeEntities: true
@@ -31393,6 +30934,603 @@ function parseDocument(data2, options) {
 const parse = getParse((content, options, isDocument2, context) => options.xmlMode || options._useHtmlParser2 ? parseDocument(content, options) : parseWithParse5(content, options, isDocument2, context));
 const load = getLoad(parse, (dom, options) => options.xmlMode || options._useHtmlParser2 ? render$1(dom, options) : renderWithParse5(dom));
 load([]);
+const AXIOS_CONFIG$1 = {
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9"
+  },
+  timeout: 15e3
+};
+const getParentsGuide = async (imdbId) => {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+  try {
+    const url2 = `https://www.imdb.com/title/${imdbId}/parentalguide`;
+    const { data: data2 } = await axios.get(url2, AXIOS_CONFIG$1);
+    const jsonMatch = data2.match(/<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/);
+    if (!jsonMatch) return [];
+    const jsonString = jsonMatch[1];
+    const parsed = JSON.parse(jsonString);
+    let categories = ((_c = (_b = (_a2 = parsed == null ? void 0 : parsed.props) == null ? void 0 : _a2.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.categories) || ((_f = (_e = (_d = parsed == null ? void 0 : parsed.props) == null ? void 0 : _d.pageProps) == null ? void 0 : _e.mainColumnData) == null ? void 0 : _f.categories) || ((_i = (_h = (_g = parsed == null ? void 0 : parsed.props) == null ? void 0 : _g.pageProps) == null ? void 0 : _h.b) == null ? void 0 : _i.categories);
+    if (!Array.isArray(categories)) return [];
+    return categories.map((cat) => {
+      var _a3;
+      return {
+        category: cat.title || cat.id || "",
+        status: ((_a3 = cat.severitySummary) == null ? void 0 : _a3.text) || "Unknown",
+        items: Array.isArray(cat.items) ? cat.items.map((it) => it.text).filter((t) => !!t) : []
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching parents guide:", error);
+    return [];
+  }
+};
+const searchMovie = async (query) => {
+  try {
+    const cleanQuery = query.toLowerCase().trim();
+    if (!cleanQuery) return [];
+    const firstChar = cleanQuery.charAt(0);
+    const url2 = `https://v2.sg.media-imdb.com/suggestion/${firstChar}/${encodeURIComponent(cleanQuery)}.json`;
+    const { data: data2 } = await axios.get(url2, AXIOS_CONFIG$1);
+    if (!data2 || !data2.d) return [];
+    const results = data2.d.map((item) => {
+      if (!item.id || !item.id.startsWith("tt") || !item.l) return null;
+      let type2 = "movie";
+      if (item.q === "TV series" || item.q === "TV mini-series") type2 = "series";
+      else if (item.q === "feature") type2 = "movie";
+      else if (item.y && item.yr) type2 = "series";
+      return {
+        id: item.id,
+        title: item.l,
+        year: item.y ? item.y.toString() : "",
+        image: item.i ? item.i.imageUrl : "",
+        type: type2
+      };
+    }).filter((item) => item !== null);
+    return results;
+  } catch (error) {
+    console.error("Error searching movie:", error);
+    return [];
+  }
+};
+const getSeriesDetails = async (imdbId) => {
+  var _a2, _b, _c, _d;
+  try {
+    const url2 = `https://www.imdb.com/title/${imdbId}/episodes?season=1`;
+    console.log(`[Scraper] Fetching series info: ${url2}`);
+    const { data: data2 } = await axios.get(url2, AXIOS_CONFIG$1);
+    const $2 = load(data2);
+    let totalSeasons = 1;
+    const seasonOptions = $2("#bySeason option");
+    if (seasonOptions.length > 0) {
+      seasonOptions.each((_, el) => {
+        const val2 = parseInt($2(el).attr("value") || "0");
+        if (val2 > totalSeasons) totalSeasons = val2;
+      });
+    } else {
+      const nextData = $2("#__NEXT_DATA__").html();
+      if (nextData) {
+        try {
+          const json = JSON.parse(nextData);
+          const seasons = (_d = (_c = (_b = (_a2 = json == null ? void 0 : json.props) == null ? void 0 : _a2.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.section) == null ? void 0 : _d.seasons;
+          if (Array.isArray(seasons)) totalSeasons = seasons.length;
+        } catch (e) {
+        }
+      }
+    }
+    if (totalSeasons === 1) {
+      const tabs = $2('a[href*="season="]');
+      tabs.each((_, el) => {
+        const href = $2(el).attr("href") || "";
+        const match = href.match(/season=(\d+)/);
+        if (match) {
+          const val2 = parseInt(match[1]);
+          if (val2 > totalSeasons) totalSeasons = val2;
+        }
+      });
+    }
+    console.log(`[Scraper] Detected ${totalSeasons} seasons.`);
+    if (totalSeasons > 30) totalSeasons = 30;
+    const promises = [];
+    for (let i = 1; i <= totalSeasons; i++) {
+      promises.push(fetchSeason(imdbId, i));
+    }
+    const results = await Promise.all(promises);
+    return results.filter((s) => s !== null);
+  } catch (error) {
+    console.error("Error getting series details:", error);
+    return [];
+  }
+};
+const fetchSeason = async (imdbId, seasonNum) => {
+  try {
+    const url2 = `https://www.imdb.com/title/${imdbId}/episodes?season=${seasonNum}`;
+    const { data: data2 } = await axios.get(url2, AXIOS_CONFIG$1);
+    const $2 = load(data2);
+    const episodes = [];
+    $2(".list.detail .list_item").each((_, el) => {
+      const title = $2(el).find(".info strong a").text().trim();
+      let episodeNumber = 0;
+      const metaEp = $2(el).find('meta[itemprop="episodeNumber"]').attr("content");
+      if (metaEp) episodeNumber = parseInt(metaEp);
+      else {
+        const epText = $2(el).find(".hover-over-image div").text().trim();
+        const match = epText.match(/Ep(\d+)/);
+        if (match) episodeNumber = parseInt(match[1]);
+      }
+      const date = $2(el).find(".airdate").text().trim();
+      const plot = $2(el).find(".item_description").text().trim();
+      const rating = $2(el).find(".ipl-rating-star__rating").first().text().trim();
+      const imgUrl = $2(el).find(".image img").attr("src");
+      const fullImg = imgUrl ? imgUrl.replace(/_V1_.*\.jpg/, "_V1_.jpg") : void 0;
+      if (title) {
+        episodes.push({
+          id: `${imdbId}-s${seasonNum}e${episodeNumber}`,
+          title,
+          episodeNumber,
+          seasonNumber: seasonNum,
+          releaseDate: date,
+          plot,
+          rating,
+          image: fullImg
+        });
+      }
+    });
+    if (episodes.length === 0) {
+      $2(".episode-item-wrapper").each((idx, el) => {
+        const title = $2(el).find("h4").text().trim();
+        const plot = $2(el).find(".ipc-html-content-inner-div").text().trim();
+        const img = $2(el).find("img.ipc-image").attr("src");
+        let episodeNumber = idx + 1;
+        const textContent2 = $2(el).text();
+        const epMatch = textContent2.match(/S\d+\.E(\d+)/);
+        if (epMatch) episodeNumber = parseInt(epMatch[1]);
+        const rating = $2(el).find('span[aria-label*="rating"]').first().text().trim();
+        let date = "";
+        const fullImg = img ? img.replace(/_V1_.*\.jpg/, "_V1_.jpg") : void 0;
+        if (title) {
+          episodes.push({
+            id: `${imdbId}-s${seasonNum}e${episodeNumber}`,
+            title,
+            episodeNumber,
+            seasonNumber: seasonNum,
+            releaseDate: date,
+            plot,
+            rating,
+            image: fullImg
+          });
+        }
+      });
+    }
+    console.log(`[Scraper] Season ${seasonNum}: Parsed ${episodes.length} episodes.`);
+    return { seasonNumber: seasonNum, episodes };
+  } catch (err) {
+    console.error(`Failed to fetch season ${seasonNum}`, err);
+    return null;
+  }
+};
+const torrentEmitter = new EventEmitter();
+const settingsPath = path$1.join(app.getPath("userData"), "settings.json");
+const defaultSettings = {
+  cacheLimitGB: 15,
+  uploadLimitKB: 2048,
+  // 2 MB/s
+  downloadsPath: path$1.join(app.getPath("userData"), "PrismoPlayerCache")
+};
+const getSettings = () => {
+  try {
+    if (fs$2.existsSync(settingsPath)) {
+      const data2 = fs$2.readFileSync(settingsPath, "utf-8");
+      return { ...defaultSettings, ...JSON.parse(data2) };
+    }
+  } catch (error) {
+    console.error("[Settings] Failed to read settings:", error);
+  }
+  return defaultSettings;
+};
+const saveSettings = (settings) => {
+  try {
+    const current = getSettings();
+    const newSettings = { ...current, ...settings };
+    fs$2.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2));
+    console.log("[Settings] Saved:", newSettings);
+    return newSettings;
+  } catch (error) {
+    console.error("[Settings] Failed to save settings:", error);
+    return null;
+  }
+};
+const require$2 = createRequire(import.meta.url);
+const WebTorrent = require$2("webtorrent");
+const CACHE_DIR_NAME = "PrismoPlayerCache";
+const cachePath = path$1.join(app.getPath("userData"), CACHE_DIR_NAME);
+if (!fs$2.existsSync(cachePath)) {
+  fs$2.mkdirSync(cachePath, { recursive: true });
+}
+const initialSettings = getSettings();
+const client = new WebTorrent({
+  uploadLimit: initialSettings.uploadLimitKB * 1024
+});
+const torrentServerMap = /* @__PURE__ */ new Map();
+let activeMagnetLink = null;
+const updateTorrentSettings = (newSettings) => {
+  if (client) {
+    client.uploadLimit = newSettings.uploadLimitKB * 1024;
+    console.log(`[Torrent] Updated upload limit to ${newSettings.uploadLimitKB} KB/s`);
+  }
+};
+const clearCache = async () => {
+  try {
+    console.log("[Cache] Manual cache clear requested.");
+    client.torrents.forEach((t) => t.destroy());
+    activeMagnetLink = null;
+    try {
+      await fsPromises.rm(cachePath, { recursive: true, force: true });
+      await fsPromises.mkdir(cachePath, { recursive: true });
+    } catch (err) {
+      console.error("[Cache] Failed to remove/recreate cache dir:", err);
+    }
+    console.log("[Cache] Cache cleared successfully.");
+    return true;
+  } catch (err) {
+    console.error("[Cache] Failed to clear cache:", err);
+    throw err;
+  }
+};
+const getDirSize = async (dirPath) => {
+  let size = 0;
+  try {
+    const stats = await fsPromises.stat(dirPath).catch(() => null);
+    if (!stats) return 0;
+    if (stats.isDirectory()) {
+      const files = await fsPromises.readdir(dirPath);
+      const sizes = await Promise.all(files.map((file) => getDirSize(path$1.join(dirPath, file))));
+      size = sizes.reduce((acc, s) => acc + s, 0);
+    } else {
+      size = stats.size;
+    }
+  } catch (err) {
+    console.error(`[Cache] Error calculating size for ${dirPath}:`, err);
+  }
+  return size;
+};
+const enforceQuota = async () => {
+  const settings = getSettings();
+  const maxCacheBytes = settings.cacheLimitGB * 1024 * 1024 * 1024;
+  console.log(`[Cache] Checking quota. Limit: ${settings.cacheLimitGB} GB`);
+  let currentSize = await getDirSize(cachePath);
+  console.log(`[Cache] Current size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  if (currentSize <= maxCacheBytes) {
+    console.log("[Cache] Quota OK.");
+    return;
+  }
+  console.log("[Cache] Quota exceeded. cleaning up old files...");
+  try {
+    const files = await fsPromises.readdir(cachePath);
+    const items = await Promise.all(files.map(async (file) => {
+      const filePath = path$1.join(cachePath, file);
+      const stats = await fsPromises.stat(filePath);
+      return {
+        path: filePath,
+        stats
+      };
+    }));
+    items.sort((a, b) => a.stats.mtime.getTime() - b.stats.mtime.getTime());
+    for (const item of items) {
+      if (currentSize <= maxCacheBytes) break;
+      console.log(`[Cache] Deleting old item: ${item.path}`);
+      if (item.stats.isDirectory()) {
+        const dirSize = await getDirSize(item.path);
+        await fsPromises.rm(item.path, { recursive: true, force: true });
+        currentSize -= dirSize;
+      } else {
+        await fsPromises.unlink(item.path);
+        currentSize -= item.stats.size;
+      }
+    }
+    console.log(`[Cache] Cleanup complete. New size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  } catch (err) {
+    console.error("[Cache] Error during quota cleanup:", err);
+  }
+};
+const cleanupCache = () => {
+  console.log("[Cache] Application closing. Destroying client and enforcing quota...");
+  client.destroy((err) => {
+    if (err) console.error("[Cache] Error destroying client:", err);
+    else console.log("[Cache] WebTorrent client destroyed.");
+    enforceQuota().catch((e) => console.error(e));
+  });
+};
+const stopActiveTorrent = () => {
+  if (activeMagnetLink) {
+    console.log(`[Torrent] Stopping active torrent: ${activeMagnetLink}`);
+    stopTorrent(activeMagnetLink);
+    activeMagnetLink = null;
+  }
+};
+const startTorrent = (magnetLink) => {
+  return new Promise((resolve, reject) => {
+    console.log(`[Torrent] startTorrent called`);
+    if (activeMagnetLink && activeMagnetLink !== magnetLink) {
+      console.log(`[Torrent] Stopping previous active torrent...`);
+      stopTorrent(activeMagnetLink);
+    }
+    activeMagnetLink = magnetLink;
+    const existingUrl = torrentServerMap.get(magnetLink);
+    if (existingUrl) {
+      console.log(`[Torrent] Reusing existing server URL: ${existingUrl}`);
+      return resolve(existingUrl);
+    }
+    const createServerFromTorrent = (torrent) => {
+      if (torrentServerMap.has(magnetLink)) {
+        return resolve(torrentServerMap.get(magnetLink));
+      }
+      try {
+        const server = torrent.createServer();
+        server.listen(0, "127.0.0.1", () => {
+          const address = server.address();
+          if (!address || typeof address === "string") {
+            return reject(new Error("Server address is not available."));
+          }
+          const port = address.port;
+          const videoFileIndex = torrent.files.reduce((bestIdx, file, idx) => {
+            const isVideo = /\.(mp4|mkv|avi|webm)$/i.test(file.name);
+            if (!isVideo) return bestIdx;
+            if (bestIdx === -1) return idx;
+            return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
+          }, -1);
+          const finalUrl = `http://127.0.0.1:${port}/${videoFileIndex !== -1 ? videoFileIndex : 0}`;
+          console.log(`[Torrent] Server created at ${finalUrl}`);
+          torrentServerMap.set(magnetLink, finalUrl);
+          resolve(finalUrl);
+        });
+        server.on("error", (err) => {
+          console.error("[Torrent] Server error:", err);
+          reject(err);
+        });
+      } catch (err) {
+        console.error("[Torrent] Error creating server:", err);
+        reject(err);
+      }
+    };
+    const existingTorrent = client.get(magnetLink);
+    if (existingTorrent) {
+      console.log(`[Torrent] Found existing torrent in client (client.get)`);
+      if (existingTorrent.ready) {
+        createServerFromTorrent(existingTorrent);
+      } else {
+        existingTorrent.once("ready", () => createServerFromTorrent(existingTorrent));
+      }
+      return;
+    }
+    try {
+      const torrentInstance = client.add(magnetLink, {
+        path: cachePath
+      });
+      torrentInstance.on("error", (error) => {
+        if (error.message && error.message.includes("duplicate torrent")) {
+          console.log("[Torrent] Caught duplicate error, recovering...");
+          const existing = client.get(magnetLink);
+          if (existing) {
+            createServerFromTorrent(existing);
+            return;
+          }
+        }
+        console.error("[Torrent] Torrent Error:", error);
+        reject(error);
+      });
+      torrentInstance.once("ready", () => {
+        console.log(`[Torrent] Metadata ready. Name: ${torrentInstance.name}`);
+        createServerFromTorrent(torrentInstance);
+        let lastUpdate = 0;
+        const updateInterval = setInterval(() => {
+          if (torrentInstance.destroyed) {
+            clearInterval(updateInterval);
+            return;
+          }
+          const now = Date.now();
+          if (now - lastUpdate > 1e3) {
+            const progress = {
+              downloadSpeed: torrentInstance.downloadSpeed,
+              progress: torrentInstance.progress,
+              numPeers: torrentInstance.numPeers,
+              downloaded: torrentInstance.downloaded,
+              length: torrentInstance.length
+            };
+            torrentEmitter.emit("torrent-progress", progress);
+            lastUpdate = now;
+          }
+        }, 1e3);
+      });
+    } catch (err) {
+      if (err.message && err.message.includes("duplicate torrent")) {
+        console.log("[Torrent] Caught synchronous duplicate error, recovering...");
+        const existing = client.get(magnetLink);
+        if (existing) {
+          if (existing.ready) createServerFromTorrent(existing);
+          else existing.once("ready", () => createServerFromTorrent(existing));
+          return;
+        }
+      }
+      console.error("[Torrent] Failed to add torrent:", err);
+      reject(err);
+    }
+  });
+};
+const stopTorrent = (magnetLink) => {
+  const torrent = client.get(magnetLink);
+  if (torrent) {
+    try {
+      torrent.destroy();
+    } catch (e) {
+      console.error("Error destroying torrent", e);
+    }
+    torrentServerMap.delete(magnetLink);
+    console.log(`[Torrent] Stopped client activity for ${magnetLink}`);
+  }
+};
+const TRACKERS = [
+  "udp://tracker.coppersurfer.tk:6969/announce",
+  "udp://tracker.openbittorrent.com:80",
+  "udp://tracker.opentrackr.org:1337",
+  "udp://tracker.leechers-paradise.org:6969",
+  "udp://tracker.dler.org:6969/announce",
+  "udp://opentracker.i2p.rocks:6969/announce",
+  "udp://47.ip-51-68-199.eu:6969/announce"
+];
+const TRACKER_STRING = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
+const calculateScore = (torrent) => {
+  let score = parseInt(torrent.seeders);
+  const name = torrent.name.toLowerCase();
+  if (name.includes("aac")) score += 100;
+  if (name.includes("x264") || name.includes("h264")) score += 50;
+  if (name.includes("x265") || name.includes("h265") || name.includes("hevc")) score += 75;
+  if (name.includes("xvid") || name.includes("divx")) score -= 50;
+  if (name.includes("web-dl") || name.includes("webrip")) score += 30;
+  if (name.includes("2160p") || name.includes("4k")) score += 40;
+  if (name.includes("1080p")) score += 30;
+  if (name.includes("720p")) score += 20;
+  return score;
+};
+const NSFW_KEYWORDS = ["porn", "xxx", "erotic", "adult", "sex", "hentai", "gay", "lesbian", "cuckold", "incest", "deepfake", "nude"];
+const NSFW_CATEGORIES_APIBAY = ["adult", "porn", "xxx"];
+const isNSFW = (torrent) => {
+  const nameLower = torrent.name.toLowerCase();
+  if (NSFW_KEYWORDS.some((keyword) => nameLower.includes(keyword))) return true;
+  if (torrent.source === "APIBay" && torrent.category) {
+    const categoryLower = torrent.category.toLowerCase();
+    if (NSFW_CATEGORIES_APIBAY.some((cat) => categoryLower.includes(cat))) return true;
+  }
+  return false;
+};
+const searchAPIBay = async (query) => {
+  try {
+    const response = await axios.get(`https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=0`);
+    const results = response.data;
+    if (!results || results.length === 0 || results[0].name === "No results returned") {
+      return [];
+    }
+    return results.map((t) => ({
+      id: t.id,
+      name: t.name,
+      info_hash: t.info_hash,
+      leechers: t.leechers,
+      seeders: t.seeders,
+      num_files: t.num_files,
+      size: t.size,
+      username: t.username,
+      added: t.added,
+      status: t.status,
+      category: t.category,
+      imdb: t.imdb,
+      magnet: `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
+      score: calculateScore(t),
+      source: "APIBay"
+    })).filter((t) => !isNSFW(t));
+  } catch (error) {
+    console.error("[Torrent] APIBay error:", error);
+    return [];
+  }
+};
+const searchYTS = async (query) => {
+  try {
+    const response = await axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`);
+    const data2 = response.data;
+    if (!data2 || !data2.data || !data2.data.movies) {
+      return [];
+    }
+    const movies = data2.data.movies;
+    const results = [];
+    movies.forEach((movie) => {
+      if (!movie.torrents) return;
+      movie.torrents.forEach((torrent) => {
+        const name = `${movie.title} ${movie.year} ${torrent.quality} ${torrent.type} YTS`;
+        results.push({
+          id: `${movie.id}-${torrent.hash}`,
+          name,
+          info_hash: torrent.hash,
+          leechers: torrent.peers.toString(),
+          seeders: torrent.seeds.toString(),
+          num_files: "1",
+          size: torrent.size_bytes.toString(),
+          username: "YTS",
+          added: torrent.date_uploaded,
+          status: "active",
+          category: "Movies",
+          imdb: movie.imdb_code,
+          magnet: `magnet:?xt=urn:btih:${torrent.hash}&dn=${encodeURIComponent(name)}${TRACKER_STRING}`,
+          score: calculateScore({ name, seeders: torrent.seeds }),
+          source: "YTS"
+        });
+      });
+    });
+    return results.filter((t) => !isNSFW(t));
+  } catch (error) {
+    return [];
+  }
+};
+const searchEZTV = async (imdbId) => {
+  if (!imdbId.startsWith("tt")) return [];
+  const numericId = imdbId.replace("tt", "");
+  try {
+    const response = await axios.get(`https://eztv.re/api/get-torrents?imdb_id=${numericId}`);
+    const data2 = response.data;
+    if (!data2 || !data2.torrents) return [];
+    return data2.torrents.map((t) => ({
+      id: t.id.toString(),
+      name: t.title,
+      info_hash: t.hash,
+      leechers: t.peers.toString(),
+      seeders: t.seeds.toString(),
+      num_files: "1",
+      size: t.size_bytes.toString(),
+      username: "EZTV",
+      added: new Date(t.date_released_unix * 1e3).toISOString(),
+      status: "active",
+      category: "Series",
+      imdb: imdbId,
+      magnet: t.magnet_url || `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(t.title)}${TRACKER_STRING}`,
+      score: calculateScore({ name: t.title, seeders: t.seeds }) + 50,
+      // Boost EZTV for series
+      source: "EZTV"
+    })).filter((t) => !isNSFW(t));
+  } catch (error) {
+    console.error("[Torrent] EZTV error:", error);
+    return [];
+  }
+};
+async function getTorrentList(query, imdbId, type2) {
+  console.log(`[Torrent] Aggregating search for: ${query}, ID: ${imdbId}, Type: ${type2}`);
+  const promises = [];
+  promises.push(searchAPIBay(query));
+  if (type2 !== "series") {
+    promises.push(searchYTS(query));
+  }
+  if ((type2 === "series" || !type2) && imdbId) {
+    promises.push(searchEZTV(imdbId));
+  }
+  const resultsArray = await Promise.all(promises);
+  const allResults = resultsArray.flat();
+  const uniqueResultsMap = /* @__PURE__ */ new Map();
+  allResults.forEach((torrent) => {
+    var _a2;
+    if (!uniqueResultsMap.has(torrent.info_hash) || (torrent.score || 0) > (((_a2 = uniqueResultsMap.get(torrent.info_hash)) == null ? void 0 : _a2.score) || 0)) {
+      uniqueResultsMap.set(torrent.info_hash, torrent);
+    }
+  });
+  const uniqueResults = Array.from(uniqueResultsMap.values());
+  return uniqueResults.sort((a, b) => (b.score || 0) - (a.score || 0));
+}
+async function searchTorrent(query, quality) {
+  const results = await getTorrentList(query);
+  if (results.length === 0) return null;
+  if (quality) {
+    const qualityMatch = results.find((t) => t.name.toLowerCase().includes(quality.toLowerCase()));
+    if (qualityMatch) return qualityMatch.magnet;
+  }
+  return results[0].magnet;
+}
 var util = { exports: {} };
 var constants$c = {
   /* The local file header */
@@ -124896,6 +125034,9 @@ app.whenReady().then(() => {
   ipcMain.handle("get-parents-guide", async (_, imdbId) => {
     return await getParentsGuide(imdbId);
   });
+  ipcMain.handle("get-series-details", async (_, imdbId) => {
+    return await getSeriesDetails(imdbId);
+  });
   ipcMain.handle("start-torrent", async (_, magnetLink) => {
     return await startTorrent(magnetLink);
   });
@@ -124908,8 +125049,8 @@ app.whenReady().then(() => {
   ipcMain.handle("search-torrent", async (_, query, quality) => {
     return await searchTorrent(query, quality);
   });
-  ipcMain.handle("list-torrents", async (_, query) => {
-    return await getTorrentList(query);
+  ipcMain.handle("list-torrents", async (_, query, imdbId, type2) => {
+    return await getTorrentList(query, imdbId, type2);
   });
   ipcMain.handle("list-subtitles", async (_, imdbId) => {
     return await listSubtitles(imdbId);
