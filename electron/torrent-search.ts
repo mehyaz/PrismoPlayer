@@ -1,4 +1,5 @@
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 export interface TorrentResult {
     id: string;
@@ -15,7 +16,7 @@ export interface TorrentResult {
     imdb: string;
     magnet: string;
     score?: number;
-    source: string; // 'YTS', 'APIBay', 'EZTV'
+    source: string; // 'YTS', 'APIBay', 'EZTV', 'TorrentsCSV'
 }
 
 const TRACKERS = [
@@ -30,20 +31,33 @@ const TRACKERS = [
 
 const TRACKER_STRING = TRACKERS.map(t => `&tr=${encodeURIComponent(t)}`).join('');
 
-const calculateScore = (torrent: any) => {
-    let score = parseInt(torrent.seeders);
-    const name = torrent.name.toLowerCase();
+const calculateScore = (torrent: any, source?: string) => {
+    const seeders = parseInt(torrent.seeders || '0');
+    const leechers = parseInt(torrent.leechers || '0');
 
-    if (name.includes('aac')) score += 100;
-    if (name.includes('x264') || name.includes('h264')) score += 50;
-    if (name.includes('x265') || name.includes('h265') || name.includes('hevc')) score += 75;
-    if (name.includes('xvid') || name.includes('divx')) score -= 50;
-    if (name.includes('web-dl') || name.includes('webrip')) score += 30;
-    
-    // Prefer higher quality for listing
-    if (name.includes('2160p') || name.includes('4k')) score += 40;
-    if (name.includes('1080p')) score += 30;
-    if (name.includes('720p')) score += 20;
+    // Base score: Priority is purely on Seeders (and some Leechers for activity)
+    let score = seeders + (leechers * 0.1);
+
+    const name = torrent.name.toLowerCase();
+    const src = source || torrent.source || '';
+
+    // Source Bonuses (Tie-breakers mostly)
+    if (src === 'YTS') score += 50;
+    if (src === 'EZTV') score += 40;
+    if (src === 'TorrentsCSV') score += 20; // Fast and reliable
+    if (src === 'APIBay') score += 10;
+
+    // Quality Bonuses (Small boost for better resolution)
+    if (name.includes('2160p') || name.includes('4k')) score += 20;
+    if (name.includes('1080p')) score += 15;
+    if (name.includes('720p')) score += 10;
+
+    // Codec Bonuses
+    if (name.includes('x265') || name.includes('h265') || name.includes('hevc')) score += 10;
+
+    // Negative weights for trash quality
+    if (name.includes('cam') || name.includes('telesync') || name.includes('ts')) score -= 500;
+    if (name.includes('sample')) score -= 200;
 
     return score;
 };
@@ -79,15 +93,15 @@ const searchAPIBay = async (query: string): Promise<TorrentResult[]> => {
             info_hash: t.info_hash,
             leechers: t.leechers,
             seeders: t.seeders,
-            num_files: t.num_files,
-            size: t.size, 
-            username: t.username,
+            num_files: '1',
+            size: t.size,
+            username: 'APIBay',
             added: t.added,
             status: t.status,
-            category: t.category, 
+            category: t.category,
             imdb: t.imdb,
             magnet: `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
-            score: calculateScore(t),
+            score: calculateScore(t, 'APIBay'),
             source: 'APIBay'
         })).filter(t => !isNSFW(t));
     } catch (error) {
@@ -98,10 +112,13 @@ const searchAPIBay = async (query: string): Promise<TorrentResult[]> => {
 
 const searchYTS = async (query: string): Promise<TorrentResult[]> => {
     try {
-        const response = await axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`);
+        // YTS search often fails if "Title Year" is passed. Strip year for better results.
+        const cleanQuery = query.replace(/\s+\d{4}$/, '');
+        const response = await axios.get(`https://en.yts-official.org/api/v2/list_movies.json?query_term=${encodeURIComponent(cleanQuery)}&limit=20`);
         const data = response.data;
 
         if (!data || !data.data || !data.data.movies) {
+            console.warn('[Torrent] YTS returned no movies (or invalid format)', data?.status_message || '');
             return [];
         }
 
@@ -126,15 +143,15 @@ const searchYTS = async (query: string): Promise<TorrentResult[]> => {
                     category: 'Movies',
                     imdb: movie.imdb_code,
                     magnet: `magnet:?xt=urn:btih:${torrent.hash}&dn=${encodeURIComponent(name)}${TRACKER_STRING}`,
-                    score: calculateScore({name, seeders: torrent.seeds}),
+                    score: calculateScore({ name, seeders: torrent.seeds, leechers: torrent.peers }, 'YTS'),
                     source: 'YTS'
                 });
             });
         });
 
         return results.filter(t => !isNSFW(t));
-    } catch (error) {
-        // YTS often fails or limits rate, silent fail is ok
+    } catch (error: any) {
+        console.error(`[Torrent] YTS Error: ${error.message}`);
         return [];
     }
 };
@@ -142,13 +159,13 @@ const searchYTS = async (query: string): Promise<TorrentResult[]> => {
 const searchEZTV = async (imdbId: string): Promise<TorrentResult[]> => {
     if (!imdbId.startsWith('tt')) return [];
     const numericId = imdbId.replace('tt', '');
-    
+
     try {
         const response = await axios.get(`https://eztv.re/api/get-torrents?imdb_id=${numericId}`);
         const data = response.data;
-        
+
         if (!data || !data.torrents) return [];
-        
+
         return data.torrents.map((t: any) => ({
             id: t.id.toString(),
             name: t.title,
@@ -163,7 +180,7 @@ const searchEZTV = async (imdbId: string): Promise<TorrentResult[]> => {
             category: 'Series',
             imdb: imdbId,
             magnet: t.magnet_url || `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(t.title)}${TRACKER_STRING}`,
-            score: calculateScore({name: t.title, seeders: t.seeds}) + 50, // Boost EZTV for series
+            score: calculateScore({ name: t.title, seeders: t.seeds, leechers: t.peers }, 'EZTV'),
             source: 'EZTV'
         })).filter((t: any) => !isNSFW(t));
 
@@ -173,28 +190,133 @@ const searchEZTV = async (imdbId: string): Promise<TorrentResult[]> => {
     }
 };
 
+const searchTorrentsCSV = async (query: string): Promise<TorrentResult[]> => {
+    try {
+        // Torrents-CSV is a fast aggregator API
+        const response = await axios.get(`https://torrents-csv.com/service/search?q=${encodeURIComponent(query)}&size=20`);
+        const results = response.data.torrents;
+
+        if (!results || !Array.isArray(results)) return [];
+
+        return results.map((t: any) => ({
+            id: t.infohash,
+            name: t.name,
+            info_hash: t.infohash,
+            leechers: t.leechers?.toString() || '0',
+            seeders: t.seeders?.toString() || '0',
+            num_files: '1', // API doesn't always provide this
+            size: t.size_bytes?.toString() || '0',
+            username: 'TorrentsCSV',
+            added: new Date().toISOString(),
+            status: 'active',
+            category: 'Mixed',
+            imdb: '',
+            magnet: `magnet:?xt=urn:btih:${t.infohash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
+            score: calculateScore({ name: t.name, seeders: t.seeders, leechers: t.leechers }, 'TorrentsCSV'),
+            source: 'TorrentsCSV'
+        })).filter((t: any) => !isNSFW(t));
+
+    } catch (error) {
+        console.error('[Torrent] TorrentsCSV error:', error);
+        return [];
+    }
+};
+
+const searchBitSearch = async (query: string): Promise<TorrentResult[]> => {
+    try {
+        const response = await axios.get(`https://bitsearch.to/search?q=${encodeURIComponent(query)}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'max-age=0',
+                'Referer': 'https://bitsearch.to/',
+            }
+        });
+
+        const $ = cheerio.load(response.data);
+        const results: TorrentResult[] = [];
+
+        $('li.search-result').each((i, el) => {
+            if (results.length >= 20) return;
+
+            const title = $(el).find('h5.title a').text().trim();
+            const magnet = $(el).find('a[href^="magnet:"]').attr('href');
+            const stats = $(el).find('.stats div');
+
+            if (magnet && title) {
+                // BitSearch stats are messy classes, try to parse text or specific divs if consistent
+                // Usually: [Files] [Size] [Seeds] [Leeches]
+                const size = $(el).find('.stats div:nth-child(2)').text().trim();
+                const seeds = $(el).find('.stats div:nth-child(3)').text().trim().replace(/,/g, '');
+                const leeches = $(el).find('.stats div:nth-child(4)').text().trim().replace(/,/g, '');
+
+                results.push({
+                    id: `bitsearch-${i}`,
+                    name: title,
+                    info_hash: magnet.match(/xt=urn:btih:([a-zA-Z0-9]+)/)?.[1] || '',
+                    leechers: leeches || '0',
+                    seeders: seeds || '0',
+                    num_files: '1',
+                    size: size,
+                    username: 'BitSearch',
+                    added: new Date().toISOString(),
+                    status: 'active',
+                    category: 'Mixed',
+                    imdb: '',
+                    magnet: magnet,
+                    score: calculateScore({ name: title, seeders: seeds, leechers: leeches }, 'BitSearch'),
+                    source: 'BitSearch'
+                });
+            }
+        });
+
+        return results.filter(t => !isNSFW(t));
+    } catch (error) {
+        console.error('[Torrent] BitSearch error:', error);
+        return [];
+    }
+};
+
 // --- Aggregator ---
 
 export async function getTorrentList(query: string, imdbId?: string, type?: 'movie' | 'series'): Promise<TorrentResult[]> {
     console.log(`[Torrent] Aggregating search for: ${query}, ID: ${imdbId}, Type: ${type}`);
-    
-    const promises = [];
-    
+
+    // Store promises with their source name for logging
+    const searchTasks: { name: string, promise: Promise<TorrentResult[]> }[] = [];
+
     // Always search APIBay (General)
-    promises.push(searchAPIBay(query));
-    
+    searchTasks.push({ name: 'APIBay', promise: searchAPIBay(query) });
+
     // If it's a movie or unknown, try YTS
     if (type !== 'series') {
-        promises.push(searchYTS(query));
-    }
-    
-    // If it's a series AND we have IMDb ID, try EZTV
-    if ((type === 'series' || !type) && imdbId) {
-        promises.push(searchEZTV(imdbId));
+        searchTasks.push({ name: 'YTS', promise: searchYTS(query) });
     }
 
-    const resultsArray = await Promise.all(promises);
-    const allResults = resultsArray.flat();
+    // If it's a series AND we have IMDb ID, try EZTV
+    if ((type === 'series' || !type) && imdbId) {
+        searchTasks.push({ name: 'EZTV', promise: searchEZTV(imdbId) });
+    }
+
+    // New fast aggregation source
+    searchTasks.push({ name: 'TorrentsCSV', promise: searchTorrentsCSV(query) });
+
+    // BitSearch (Lightweight)
+    searchTasks.push({ name: 'BitSearch', promise: searchBitSearch(query) });
+
+    const resultsArray = await Promise.all(searchTasks.map(t => t.promise));
+    const allResults: TorrentResult[] = [];
+
+    console.log('--- Torrent Search Report ---');
+    resultsArray.forEach((res, idx) => {
+        const sourceName = searchTasks[idx].name;
+        const count = res.length;
+        console.log(`[Torrent] Source: ${sourceName.padEnd(12)} | Results: ${count}`);
+        allResults.push(...res);
+    });
+    console.log(`[Torrent] Total aggregated results: ${allResults.length}`);
+    console.log('-----------------------------');
 
     const uniqueResultsMap = new Map<string, TorrentResult>();
     allResults.forEach(torrent => {
@@ -202,7 +324,7 @@ export async function getTorrentList(query: string, imdbId?: string, type?: 'mov
             uniqueResultsMap.set(torrent.info_hash, torrent);
         }
     });
-    
+
     const uniqueResults = Array.from(uniqueResultsMap.values());
     return uniqueResults.sort((a, b) => (b.score || 0) - (a.score || 0));
 }

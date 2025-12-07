@@ -154,32 +154,94 @@ export const stopActiveTorrent = () => {
     }
 };
 
-export const startTorrent = (magnetLink: string): Promise<string> => {
+export const startTorrent = (magnetLink: string, fileIndex?: number): Promise<string | { status: 'select-files', files: { name: string, index: number, size: number }[] }> => {
     return new Promise((resolve, reject) => {
-        console.log(`[Torrent] startTorrent called`);
+        console.log(`[Torrent] startTorrent called. Index: ${fileIndex}`);
 
         // 1. Stop any previously active torrent (Zombie prevention)
         // BUT: Do NOT stop if it's the same magnet link we want to play (Resume scenario)
+        // AND we are not just switching files in the same torrent
         if (activeMagnetLink && activeMagnetLink !== magnetLink) {
             console.log(`[Torrent] Stopping previous active torrent...`);
             stopTorrent(activeMagnetLink);
         }
         activeMagnetLink = magnetLink;
 
+        // If reusing existing server with a specific file index potentially?
+        // Current implementation reusing URL map might be tricky if we want to switch files.
+        // For simplicity, if fileIndex is provided, we might want to recreate server or update it?
+        // WebTorrent server usually serves all files, just the URL path changes.
+        // So checking torrentServerMap might be enough if we just append the index to the base URL...
+        // BUT the previous implementation stored the full URL including index.
+        // Let's modify map storage to store BASE url or check if we can reuse.
+
+        // Actually, easiest way is to re-evaluate the URL if fileIndex is passed.
         const existingUrl = torrentServerMap.get(magnetLink);
-        if (existingUrl) {
+        if (existingUrl && fileIndex !== undefined) {
+            // If we have an existing URL, we need to check if it matches the requested fileIndex.
+            // The stored URL looks like: http://.../INDEX
+            // If it doesn't match, we might just need to construct the new URL since server serves all.
+            // But we don't store the PORT separately. 
+            // Let's just create a new server instance for simplicity or parse the port.
+            // Better: Store the SERVER instance or PORT in the map?
+            // For now, let's proceed with standard logic: if we need to select file, we likely don't have a stable URL yet
+            // OR we can just return the new URL if we can extract port.
+
+            // To simplify: We will allow recreating server if fileIndex is changing, 
+            // OR we just parse the port from existingURL if valid.
+            const match = existingUrl.match(/http:\/\/127\.0\.0\.1:(\d+)\//);
+            if (match) {
+                const newUrl = `http://127.0.0.1:${match[1]}/${fileIndex}`;
+                console.log(`[Torrent] Switching file on existing server: ${newUrl}`);
+                torrentServerMap.set(magnetLink, newUrl);
+                return resolve(newUrl);
+            }
+        } else if (existingUrl && fileIndex === undefined) {
+            // Reusing existing "default" or last played
             console.log(`[Torrent] Reusing existing server URL: ${existingUrl}`);
             return resolve(existingUrl);
         }
 
         const createServerFromTorrent = (torrent: any) => {
-            // Double check if server map was updated in race condition
-            if (torrentServerMap.has(magnetLink)) {
-                return resolve(torrentServerMap.get(magnetLink)!);
+            // Check for video files
+            const videoFiles = torrent.files.map((file: any, idx: number) => ({
+                name: file.name,
+                index: idx,
+                size: file.length,
+                isVideo: /\.(mp4|mkv|avi|webm|m4v)$/i.test(file.name)
+            })).filter((f: any) => f.isVideo);
+
+            // Sort by size desc
+            videoFiles.sort((a: any, b: any) => b.size - a.size);
+
+            if (videoFiles.length > 1 && fileIndex === undefined) {
+                console.log(`[Torrent] Multiple video files found (${videoFiles.length}). Requesting selection.`);
+                return resolve({
+                    status: 'select-files',
+                    files: videoFiles
+                });
+            }
+
+            // Determine which file to play
+            let targetIndex = -1;
+            if (fileIndex !== undefined) {
+                targetIndex = fileIndex;
+            } else if (videoFiles.length > 0) {
+                targetIndex = videoFiles[0].index; // Default to largest
+            } else {
+                // No video files? Just try largest file of any kind?
+                targetIndex = torrent.files.reduce((bestIdx: number, file: any, idx: number) => {
+                    return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
+                }, 0);
             }
 
             // Handle server creation carefully to avoid EADDRINUSE
             try {
+                // If server already exists for this torrent (we just didn't have the URL mapped correctly or whatever),
+                // torrent.createServer might return new one or error?
+                // WebTorrent torrent object doesn't expose existing server AFAIK easily.
+                // But we can just create one.
+
                 const server = torrent.createServer();
                 // Bind strictly to localhost for security
                 server.listen(0, '127.0.0.1', () => {
@@ -189,14 +251,7 @@ export const startTorrent = (magnetLink: string): Promise<string> => {
                     }
                     const port = address.port;
 
-                    const videoFileIndex = torrent.files.reduce((bestIdx: number, file: any, idx: number) => {
-                        const isVideo = /\.(mp4|mkv|avi|webm)$/i.test(file.name);
-                        if (!isVideo) return bestIdx;
-                        if (bestIdx === -1) return idx;
-                        return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
-                    }, -1);
-
-                    const finalUrl = `http://127.0.0.1:${port}/${videoFileIndex !== -1 ? videoFileIndex : 0}`;
+                    const finalUrl = `http://127.0.0.1:${port}/${targetIndex}`;
                     console.log(`[Torrent] Server created at ${finalUrl}`);
                     torrentServerMap.set(magnetLink, finalUrl);
                     resolve(finalUrl);

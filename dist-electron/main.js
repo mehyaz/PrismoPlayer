@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import electron, { app as app$1 } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path$1 from "node:path";
@@ -21,6 +21,7 @@ import fs$2 from "node:fs";
 import fsPromises from "node:fs/promises";
 import require$$0$4 from "buffer";
 import require$$1$4 from "string_decoder";
+import crypto$1 from "node:crypto";
 function bind$2(fn, thisArg) {
   return function wrap2() {
     return fn.apply(thisArg, arguments);
@@ -12379,9 +12380,9 @@ var asynckit = asynckit$1;
 var setToStringTag2 = esSetTostringtag;
 var hasOwn$2 = hasown;
 var populate = populate$1;
-function FormData$2(options) {
-  if (!(this instanceof FormData$2)) {
-    return new FormData$2(options);
+function FormData$1(options) {
+  if (!(this instanceof FormData$1)) {
+    return new FormData$1(options);
   }
   this._overheadLength = 0;
   this._valueLength = 0;
@@ -12392,10 +12393,10 @@ function FormData$2(options) {
     this[option] = options[option];
   }
 }
-util$1.inherits(FormData$2, CombinedStream);
-FormData$2.LINE_BREAK = "\r\n";
-FormData$2.DEFAULT_CONTENT_TYPE = "application/octet-stream";
-FormData$2.prototype.append = function(field, value, options) {
+util$1.inherits(FormData$1, CombinedStream);
+FormData$1.LINE_BREAK = "\r\n";
+FormData$1.DEFAULT_CONTENT_TYPE = "application/octet-stream";
+FormData$1.prototype.append = function(field, value, options) {
   options = options || {};
   if (typeof options === "string") {
     options = { filename: options };
@@ -12415,7 +12416,7 @@ FormData$2.prototype.append = function(field, value, options) {
   append3(footer);
   this._trackLength(header, value, options);
 };
-FormData$2.prototype._trackLength = function(header, value, options) {
+FormData$1.prototype._trackLength = function(header, value, options) {
   var valueLength = 0;
   if (options.knownLength != null) {
     valueLength += Number(options.knownLength);
@@ -12425,7 +12426,7 @@ FormData$2.prototype._trackLength = function(header, value, options) {
     valueLength = Buffer.byteLength(value);
   }
   this._valueLength += valueLength;
-  this._overheadLength += Buffer.byteLength(header) + FormData$2.LINE_BREAK.length;
+  this._overheadLength += Buffer.byteLength(header) + FormData$1.LINE_BREAK.length;
   if (!value || !value.path && !(value.readable && hasOwn$2(value, "httpVersion")) && !(value instanceof Stream)) {
     return;
   }
@@ -12433,7 +12434,7 @@ FormData$2.prototype._trackLength = function(header, value, options) {
     this._valuesToMeasure.push(value);
   }
 };
-FormData$2.prototype._lengthRetriever = function(value, callback) {
+FormData$1.prototype._lengthRetriever = function(value, callback) {
   if (hasOwn$2(value, "fd")) {
     if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
       callback(null, value.end + 1 - (value.start ? value.start : 0));
@@ -12459,7 +12460,7 @@ FormData$2.prototype._lengthRetriever = function(value, callback) {
     callback("Unknown stream");
   }
 };
-FormData$2.prototype._multiPartHeader = function(field, value, options) {
+FormData$1.prototype._multiPartHeader = function(field, value, options) {
   if (typeof options.header === "string") {
     return options.header;
   }
@@ -12486,13 +12487,13 @@ FormData$2.prototype._multiPartHeader = function(field, value, options) {
         header = [header];
       }
       if (header.length) {
-        contents2 += prop2 + ": " + header.join("; ") + FormData$2.LINE_BREAK;
+        contents2 += prop2 + ": " + header.join("; ") + FormData$1.LINE_BREAK;
       }
     }
   }
-  return "--" + this.getBoundary() + FormData$2.LINE_BREAK + contents2 + FormData$2.LINE_BREAK;
+  return "--" + this.getBoundary() + FormData$1.LINE_BREAK + contents2 + FormData$1.LINE_BREAK;
 };
-FormData$2.prototype._getContentDisposition = function(value, options) {
+FormData$1.prototype._getContentDisposition = function(value, options) {
   var filename;
   if (typeof options.filepath === "string") {
     filename = path.normalize(options.filepath).replace(/\\/g, "/");
@@ -12505,7 +12506,7 @@ FormData$2.prototype._getContentDisposition = function(value, options) {
     return 'filename="' + filename + '"';
   }
 };
-FormData$2.prototype._getContentType = function(value, options) {
+FormData$1.prototype._getContentType = function(value, options) {
   var contentType = options.contentType;
   if (!contentType && value && value.name) {
     contentType = mime.lookup(value.name);
@@ -12520,13 +12521,13 @@ FormData$2.prototype._getContentType = function(value, options) {
     contentType = mime.lookup(options.filepath || options.filename);
   }
   if (!contentType && value && typeof value === "object") {
-    contentType = FormData$2.DEFAULT_CONTENT_TYPE;
+    contentType = FormData$1.DEFAULT_CONTENT_TYPE;
   }
   return contentType;
 };
-FormData$2.prototype._multiPartFooter = function() {
+FormData$1.prototype._multiPartFooter = function() {
   return (function(next2) {
-    var footer = FormData$2.LINE_BREAK;
+    var footer = FormData$1.LINE_BREAK;
     var lastPart = this._streams.length === 0;
     if (lastPart) {
       footer += this._lastBoundary();
@@ -12534,10 +12535,10 @@ FormData$2.prototype._multiPartFooter = function() {
     next2(footer);
   }).bind(this);
 };
-FormData$2.prototype._lastBoundary = function() {
-  return "--" + this.getBoundary() + "--" + FormData$2.LINE_BREAK;
+FormData$1.prototype._lastBoundary = function() {
+  return "--" + this.getBoundary() + "--" + FormData$1.LINE_BREAK;
 };
-FormData$2.prototype.getHeaders = function(userHeaders) {
+FormData$1.prototype.getHeaders = function(userHeaders) {
   var header;
   var formHeaders = {
     "content-type": "multipart/form-data; boundary=" + this.getBoundary()
@@ -12549,19 +12550,19 @@ FormData$2.prototype.getHeaders = function(userHeaders) {
   }
   return formHeaders;
 };
-FormData$2.prototype.setBoundary = function(boundary) {
+FormData$1.prototype.setBoundary = function(boundary) {
   if (typeof boundary !== "string") {
     throw new TypeError("FormData boundary must be a string");
   }
   this._boundary = boundary;
 };
-FormData$2.prototype.getBoundary = function() {
+FormData$1.prototype.getBoundary = function() {
   if (!this._boundary) {
     this._generateBoundary();
   }
   return this._boundary;
 };
-FormData$2.prototype.getBuffer = function() {
+FormData$1.prototype.getBuffer = function() {
   var dataBuffer = new Buffer.alloc(0);
   var boundary = this.getBoundary();
   for (var i = 0, len = this._streams.length; i < len; i++) {
@@ -12572,16 +12573,16 @@ FormData$2.prototype.getBuffer = function() {
         dataBuffer = Buffer.concat([dataBuffer, Buffer.from(this._streams[i])]);
       }
       if (typeof this._streams[i] !== "string" || this._streams[i].substring(2, boundary.length + 2) !== boundary) {
-        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData$2.LINE_BREAK)]);
+        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData$1.LINE_BREAK)]);
       }
     }
   }
   return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
 };
-FormData$2.prototype._generateBoundary = function() {
+FormData$1.prototype._generateBoundary = function() {
   this._boundary = "--------------------------" + crypto.randomBytes(12).toString("hex");
 };
-FormData$2.prototype.getLengthSync = function() {
+FormData$1.prototype.getLengthSync = function() {
   var knownLength = this._overheadLength + this._valueLength;
   if (this._streams.length) {
     knownLength += this._lastBoundary().length;
@@ -12591,14 +12592,14 @@ FormData$2.prototype.getLengthSync = function() {
   }
   return knownLength;
 };
-FormData$2.prototype.hasKnownLength = function() {
+FormData$1.prototype.hasKnownLength = function() {
   var hasKnownLength = true;
   if (this._valuesToMeasure.length) {
     hasKnownLength = false;
   }
   return hasKnownLength;
 };
-FormData$2.prototype.getLength = function(cb) {
+FormData$1.prototype.getLength = function(cb) {
   var knownLength = this._overheadLength + this._valueLength;
   if (this._streams.length) {
     knownLength += this._lastBoundary().length;
@@ -12618,7 +12619,7 @@ FormData$2.prototype.getLength = function(cb) {
     cb(null, knownLength);
   });
 };
-FormData$2.prototype.submit = function(params, cb) {
+FormData$1.prototype.submit = function(params, cb) {
   var request;
   var options;
   var defaults2 = { method: "post" };
@@ -12665,19 +12666,19 @@ FormData$2.prototype.submit = function(params, cb) {
   }).bind(this));
   return request;
 };
-FormData$2.prototype._error = function(err) {
+FormData$1.prototype._error = function(err) {
   if (!this.error) {
     this.error = err;
     this.pause();
     this.emit("error", err);
   }
 };
-FormData$2.prototype.toString = function() {
+FormData$1.prototype.toString = function() {
   return "[object FormData]";
 };
-setToStringTag2(FormData$2.prototype, "FormData");
-var form_data = FormData$2;
-const FormData$1 = /* @__PURE__ */ getDefaultExportFromCjs(form_data);
+setToStringTag2(FormData$1.prototype, "FormData");
+var form_data = FormData$1;
+const FormData$2 = /* @__PURE__ */ getDefaultExportFromCjs(form_data);
 function isVisitable(thing) {
   return utils$2.isPlainObject(thing) || utils$2.isArray(thing);
 }
@@ -12701,7 +12702,7 @@ function toFormData$1(obj, formData, options) {
   if (!utils$2.isObject(obj)) {
     throw new TypeError("target must be an object");
   }
-  formData = formData || new (FormData$1 || FormData)();
+  formData = formData || new (FormData$2 || FormData)();
   options = utils$2.toFlatObject(options, {
     metaTokens: true,
     dots: false,
@@ -12937,7 +12938,7 @@ const platform$1 = {
   isNode: true,
   classes: {
     URLSearchParams,
-    FormData: FormData$1,
+    FormData: FormData$2,
     Blob: typeof Blob !== "undefined" && Blob || null
   },
   ALPHABET,
@@ -19585,7 +19586,7 @@ function parseSelector(subselects2, selector, selectorIndex) {
   finalizeSubselector();
   return selectorIndex;
 }
-var boolbase$1 = {
+var boolbase = {
   trueFunc: function trueFunc() {
     return true;
   },
@@ -19593,7 +19594,7 @@ var boolbase$1 = {
     return false;
   }
 };
-const boolbase = /* @__PURE__ */ getDefaultExportFromCjs(boolbase$1);
+const boolbase$1 = /* @__PURE__ */ getDefaultExportFromCjs(boolbase);
 const procedure = /* @__PURE__ */ new Map([
   [SelectorType.Universal, 50],
   [SelectorType.Tag, 30],
@@ -19743,7 +19744,7 @@ const attributeRules = {
     const { adapter: adapter2 } = options;
     const { name, value } = data2;
     if (/\s/.test(value)) {
-      return boolbase.falseFunc;
+      return boolbase$1.falseFunc;
     }
     const regex = new RegExp(`(?:^|\\s)${escapeRegex(value)}(?:$|\\s)`, shouldIgnoreCase(data2, options) ? "i" : "");
     return function element(elem) {
@@ -19760,7 +19761,7 @@ const attributeRules = {
     let { value } = data2;
     const len = value.length;
     if (len === 0) {
-      return boolbase.falseFunc;
+      return boolbase$1.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       value = value.toLowerCase();
@@ -19780,7 +19781,7 @@ const attributeRules = {
     let { value } = data2;
     const len = -value.length;
     if (len === 0) {
-      return boolbase.falseFunc;
+      return boolbase$1.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       value = value.toLowerCase();
@@ -19798,7 +19799,7 @@ const attributeRules = {
     const { adapter: adapter2 } = options;
     const { name, value } = data2;
     if (value === "") {
-      return boolbase.falseFunc;
+      return boolbase$1.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       const regex = new RegExp(escapeRegex(value), "i");
@@ -19887,13 +19888,13 @@ function compile(parsed) {
   const a = parsed[0];
   const b = parsed[1] - 1;
   if (b < 0 && a <= 0)
-    return boolbase.falseFunc;
+    return boolbase$1.falseFunc;
   if (a === -1)
     return (index2) => index2 <= b;
   if (a === 0)
     return (index2) => index2 === b;
   if (a === 1)
-    return b < 0 ? boolbase.trueFunc : (index2) => index2 >= b;
+    return b < 0 ? boolbase$1.trueFunc : (index2) => index2 >= b;
   const absA = Math.abs(a);
   const bMod = (b % absA + absA) % absA;
   return a > 1 ? (index2) => index2 >= b && index2 % absA === bMod : (index2) => index2 <= b && index2 % absA === bMod;
@@ -19922,9 +19923,9 @@ const filters = {
   // Location specific methods
   "nth-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase.falseFunc)
-      return boolbase.falseFunc;
-    if (func === boolbase.trueFunc)
+    if (func === boolbase$1.falseFunc)
+      return boolbase$1.falseFunc;
+    if (func === boolbase$1.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthChild(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -19941,9 +19942,9 @@ const filters = {
   },
   "nth-last-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase.falseFunc)
-      return boolbase.falseFunc;
-    if (func === boolbase.trueFunc)
+    if (func === boolbase$1.falseFunc)
+      return boolbase$1.falseFunc;
+    if (func === boolbase$1.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthLastChild(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -19960,9 +19961,9 @@ const filters = {
   },
   "nth-of-type"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase.falseFunc)
-      return boolbase.falseFunc;
-    if (func === boolbase.trueFunc)
+    if (func === boolbase$1.falseFunc)
+      return boolbase$1.falseFunc;
+    if (func === boolbase$1.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthOfType(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -19980,9 +19981,9 @@ const filters = {
   },
   "nth-last-of-type"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase.falseFunc)
-      return boolbase.falseFunc;
-    if (func === boolbase.trueFunc)
+    if (func === boolbase$1.falseFunc)
+      return boolbase$1.falseFunc;
+    if (func === boolbase$1.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthLastOfType(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -20023,7 +20024,7 @@ function dynamicStatePseudo(name) {
   return function dynamicPseudo(next2, _rule, { adapter: adapter2 }) {
     const func = adapter2[name];
     if (typeof func !== "function") {
-      return boolbase.falseFunc;
+      return boolbase$1.falseFunc;
     }
     return function active(elem) {
       return func(elem) && next2(elem);
@@ -20130,8 +20131,8 @@ const aliases = {
 };
 const PLACEHOLDER_ELEMENT = {};
 function ensureIsTag(next2, adapter2) {
-  if (next2 === boolbase.falseFunc)
-    return boolbase.falseFunc;
+  if (next2 === boolbase$1.falseFunc)
+    return boolbase$1.falseFunc;
   return (elem) => adapter2.isTag(elem) && next2(elem);
 }
 function getNextSiblings(elem, adapter2) {
@@ -20157,7 +20158,7 @@ function copyOptions(options) {
 }
 const is$2 = (next2, token, options, context, compileToken2) => {
   const func = compileToken2(token, copyOptions(options), context);
-  return func === boolbase.trueFunc ? next2 : func === boolbase.falseFunc ? boolbase.falseFunc : (elem) => func(elem) && next2(elem);
+  return func === boolbase$1.trueFunc ? next2 : func === boolbase$1.falseFunc ? boolbase$1.falseFunc : (elem) => func(elem) && next2(elem);
 };
 const subselects = {
   is: is$2,
@@ -20168,7 +20169,7 @@ const subselects = {
   where: is$2,
   not(next2, token, options, context, compileToken2) {
     const func = compileToken2(token, copyOptions(options), context);
-    return func === boolbase.falseFunc ? next2 : func === boolbase.trueFunc ? boolbase.falseFunc : (elem) => !func(elem) && next2(elem);
+    return func === boolbase$1.falseFunc ? next2 : func === boolbase$1.trueFunc ? boolbase$1.falseFunc : (elem) => !func(elem) && next2(elem);
   },
   has(next2, subselect, options, _context, compileToken2) {
     const { adapter: adapter2 } = options;
@@ -20179,10 +20180,10 @@ const subselects = {
       [PLACEHOLDER_ELEMENT]
     ) : void 0;
     const compiled = compileToken2(subselect, opts, context);
-    if (compiled === boolbase.falseFunc)
-      return boolbase.falseFunc;
+    if (compiled === boolbase$1.falseFunc)
+      return boolbase$1.falseFunc;
     const hasElement = ensureIsTag(compiled, adapter2);
-    if (context && compiled !== boolbase.trueFunc) {
+    if (context && compiled !== boolbase$1.trueFunc) {
       const { shouldTestNextSiblings = false } = compiled;
       return (elem) => {
         if (!next2(elem))
@@ -20408,19 +20409,19 @@ function compileToken(token, options, context) {
       }
     }
     return compileRules(rules, options, finalContext);
-  }).reduce(reduceRules, boolbase.falseFunc);
+  }).reduce(reduceRules, boolbase$1.falseFunc);
   query.shouldTestNextSiblings = shouldTestNextSiblings;
   return query;
 }
 function compileRules(rules, options, context) {
   var _a2;
-  return rules.reduce((previous, rule) => previous === boolbase.falseFunc ? boolbase.falseFunc : compileGeneralSelector(previous, rule, options, context, compileToken), (_a2 = options.rootFunc) !== null && _a2 !== void 0 ? _a2 : boolbase.trueFunc);
+  return rules.reduce((previous, rule) => previous === boolbase$1.falseFunc ? boolbase$1.falseFunc : compileGeneralSelector(previous, rule, options, context, compileToken), (_a2 = options.rootFunc) !== null && _a2 !== void 0 ? _a2 : boolbase$1.trueFunc);
 }
 function reduceRules(a, b) {
-  if (b === boolbase.falseFunc || a === boolbase.trueFunc) {
+  if (b === boolbase$1.falseFunc || a === boolbase$1.trueFunc) {
     return a;
   }
-  if (a === boolbase.falseFunc || b === boolbase.trueFunc) {
+  if (a === boolbase$1.falseFunc || b === boolbase$1.trueFunc) {
     return b;
   }
   return function combine(elem) {
@@ -20660,8 +20661,8 @@ function findFilterElements(root2, selector, options, queryForSelector, totalLim
        */
       rootFunc: (el) => result.includes(el)
     };
-  } else if (options.rootFunc && options.rootFunc !== boolbase$1.trueFunc) {
-    options = { ...options, rootFunc: boolbase$1.trueFunc };
+  } else if (options.rootFunc && options.rootFunc !== boolbase.trueFunc) {
+    options = { ...options, rootFunc: boolbase.trueFunc };
   }
   return remainingSelector.some(isFilter) ? findFilterElements(result, remainingSelector, options, false, totalLimit) : remainingHasTraversal ? (
     // Query existing elements to resolve traversal.
@@ -20684,7 +20685,7 @@ function filterElements(elements, sel, options) {
   if (els.length === 0)
     return els;
   const query = _compileToken(sel, options);
-  return query === boolbase$1.trueFunc ? els : els.filter(query);
+  return query === boolbase.trueFunc ? els : els.filter(query);
 }
 const reSiblingSelector = /^\s*[~+]/;
 function find(selectorOrHaystack) {
@@ -31111,23 +31112,25 @@ const fetchSeason = async (imdbId, seasonNum) => {
   }
 };
 const torrentEmitter = new EventEmitter();
-const settingsPath = path$1.join(app.getPath("userData"), "settings.json");
-const defaultSettings = {
-  cacheLimitGB: 15,
-  uploadLimitKB: 2048,
+const settingsPath = path$1.join(app$1.getPath("userData"), "settings.json");
+const DEFAULT_SETTINGS = {
+  cacheLimitGB: 10,
+  uploadLimitKB: 0,
   // 2 MB/s
-  downloadsPath: path$1.join(app.getPath("userData"), "PrismoPlayerCache")
+  downloadsPath: path$1.join(app$1.getPath("downloads"), "PrismoPlayer"),
+  openSubtitlesApiKey: ""
 };
 const getSettings = () => {
+  if (!fs$2.existsSync(settingsPath)) {
+    return DEFAULT_SETTINGS;
+  }
   try {
-    if (fs$2.existsSync(settingsPath)) {
-      const data2 = fs$2.readFileSync(settingsPath, "utf-8");
-      return { ...defaultSettings, ...JSON.parse(data2) };
-    }
+    const data2 = fs$2.readFileSync(settingsPath, "utf-8");
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(data2) };
   } catch (error) {
     console.error("[Settings] Failed to read settings:", error);
+    return DEFAULT_SETTINGS;
   }
-  return defaultSettings;
 };
 const saveSettings = (settings) => {
   try {
@@ -31144,7 +31147,7 @@ const saveSettings = (settings) => {
 const require$2 = createRequire(import.meta.url);
 const WebTorrent = require$2("webtorrent");
 const CACHE_DIR_NAME = "PrismoPlayerCache";
-const cachePath = path$1.join(app.getPath("userData"), CACHE_DIR_NAME);
+const cachePath = path$1.join(app$1.getPath("userData"), CACHE_DIR_NAME);
 if (!fs$2.existsSync(cachePath)) {
   fs$2.mkdirSync(cachePath, { recursive: true });
 }
@@ -31249,22 +31252,51 @@ const stopActiveTorrent = () => {
     activeMagnetLink = null;
   }
 };
-const startTorrent = (magnetLink) => {
+const startTorrent = (magnetLink, fileIndex) => {
   return new Promise((resolve, reject) => {
-    console.log(`[Torrent] startTorrent called`);
+    console.log(`[Torrent] startTorrent called. Index: ${fileIndex}`);
     if (activeMagnetLink && activeMagnetLink !== magnetLink) {
       console.log(`[Torrent] Stopping previous active torrent...`);
       stopTorrent(activeMagnetLink);
     }
     activeMagnetLink = magnetLink;
     const existingUrl = torrentServerMap.get(magnetLink);
-    if (existingUrl) {
+    if (existingUrl && fileIndex !== void 0) {
+      const match = existingUrl.match(/http:\/\/127\.0\.0\.1:(\d+)\//);
+      if (match) {
+        const newUrl = `http://127.0.0.1:${match[1]}/${fileIndex}`;
+        console.log(`[Torrent] Switching file on existing server: ${newUrl}`);
+        torrentServerMap.set(magnetLink, newUrl);
+        return resolve(newUrl);
+      }
+    } else if (existingUrl && fileIndex === void 0) {
       console.log(`[Torrent] Reusing existing server URL: ${existingUrl}`);
       return resolve(existingUrl);
     }
     const createServerFromTorrent = (torrent) => {
-      if (torrentServerMap.has(magnetLink)) {
-        return resolve(torrentServerMap.get(magnetLink));
+      const videoFiles = torrent.files.map((file, idx) => ({
+        name: file.name,
+        index: idx,
+        size: file.length,
+        isVideo: /\.(mp4|mkv|avi|webm|m4v)$/i.test(file.name)
+      })).filter((f) => f.isVideo);
+      videoFiles.sort((a, b) => b.size - a.size);
+      if (videoFiles.length > 1 && fileIndex === void 0) {
+        console.log(`[Torrent] Multiple video files found (${videoFiles.length}). Requesting selection.`);
+        return resolve({
+          status: "select-files",
+          files: videoFiles
+        });
+      }
+      let targetIndex = -1;
+      if (fileIndex !== void 0) {
+        targetIndex = fileIndex;
+      } else if (videoFiles.length > 0) {
+        targetIndex = videoFiles[0].index;
+      } else {
+        targetIndex = torrent.files.reduce((bestIdx, file, idx) => {
+          return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
+        }, 0);
       }
       try {
         const server = torrent.createServer();
@@ -31274,13 +31306,7 @@ const startTorrent = (magnetLink) => {
             return reject(new Error("Server address is not available."));
           }
           const port = address.port;
-          const videoFileIndex = torrent.files.reduce((bestIdx, file, idx) => {
-            const isVideo = /\.(mp4|mkv|avi|webm)$/i.test(file.name);
-            if (!isVideo) return bestIdx;
-            if (bestIdx === -1) return idx;
-            return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
-          }, -1);
-          const finalUrl = `http://127.0.0.1:${port}/${videoFileIndex !== -1 ? videoFileIndex : 0}`;
+          const finalUrl = `http://127.0.0.1:${port}/${targetIndex}`;
           console.log(`[Torrent] Server created at ${finalUrl}`);
           torrentServerMap.set(magnetLink, finalUrl);
           resolve(finalUrl);
@@ -31380,17 +31406,22 @@ const TRACKERS = [
   "udp://47.ip-51-68-199.eu:6969/announce"
 ];
 const TRACKER_STRING = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
-const calculateScore = (torrent) => {
-  let score = parseInt(torrent.seeders);
+const calculateScore = (torrent, source) => {
+  const seeders = parseInt(torrent.seeders || "0");
+  const leechers = parseInt(torrent.leechers || "0");
+  let score = seeders + leechers * 0.1;
   const name = torrent.name.toLowerCase();
-  if (name.includes("aac")) score += 100;
-  if (name.includes("x264") || name.includes("h264")) score += 50;
-  if (name.includes("x265") || name.includes("h265") || name.includes("hevc")) score += 75;
-  if (name.includes("xvid") || name.includes("divx")) score -= 50;
-  if (name.includes("web-dl") || name.includes("webrip")) score += 30;
-  if (name.includes("2160p") || name.includes("4k")) score += 40;
-  if (name.includes("1080p")) score += 30;
-  if (name.includes("720p")) score += 20;
+  const src2 = source || torrent.source || "";
+  if (src2 === "YTS") score += 50;
+  if (src2 === "EZTV") score += 40;
+  if (src2 === "TorrentsCSV") score += 20;
+  if (src2 === "APIBay") score += 10;
+  if (name.includes("2160p") || name.includes("4k")) score += 20;
+  if (name.includes("1080p")) score += 15;
+  if (name.includes("720p")) score += 10;
+  if (name.includes("x265") || name.includes("h265") || name.includes("hevc")) score += 10;
+  if (name.includes("cam") || name.includes("telesync") || name.includes("ts")) score -= 500;
+  if (name.includes("sample")) score -= 200;
   return score;
 };
 const NSFW_KEYWORDS = ["porn", "xxx", "erotic", "adult", "sex", "hentai", "gay", "lesbian", "cuckold", "incest", "deepfake", "nude"];
@@ -31417,15 +31448,15 @@ const searchAPIBay = async (query) => {
       info_hash: t.info_hash,
       leechers: t.leechers,
       seeders: t.seeders,
-      num_files: t.num_files,
+      num_files: "1",
       size: t.size,
-      username: t.username,
+      username: "APIBay",
       added: t.added,
       status: t.status,
       category: t.category,
       imdb: t.imdb,
       magnet: `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
-      score: calculateScore(t),
+      score: calculateScore(t, "APIBay"),
       source: "APIBay"
     })).filter((t) => !isNSFW(t));
   } catch (error) {
@@ -31435,9 +31466,11 @@ const searchAPIBay = async (query) => {
 };
 const searchYTS = async (query) => {
   try {
-    const response = await axios.get(`https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=20`);
+    const cleanQuery = query.replace(/\s+\d{4}$/, "");
+    const response = await axios.get(`https://en.yts-official.org/api/v2/list_movies.json?query_term=${encodeURIComponent(cleanQuery)}&limit=20`);
     const data2 = response.data;
     if (!data2 || !data2.data || !data2.data.movies) {
+      console.warn("[Torrent] YTS returned no movies (or invalid format)", (data2 == null ? void 0 : data2.status_message) || "");
       return [];
     }
     const movies = data2.data.movies;
@@ -31460,13 +31493,14 @@ const searchYTS = async (query) => {
           category: "Movies",
           imdb: movie.imdb_code,
           magnet: `magnet:?xt=urn:btih:${torrent.hash}&dn=${encodeURIComponent(name)}${TRACKER_STRING}`,
-          score: calculateScore({ name, seeders: torrent.seeds }),
+          score: calculateScore({ name, seeders: torrent.seeds, leechers: torrent.peers }, "YTS"),
           source: "YTS"
         });
       });
     });
     return results.filter((t) => !isNSFW(t));
   } catch (error) {
+    console.error(`[Torrent] YTS Error: ${error.message}`);
     return [];
   }
 };
@@ -31491,8 +31525,7 @@ const searchEZTV = async (imdbId) => {
       category: "Series",
       imdb: imdbId,
       magnet: t.magnet_url || `magnet:?xt=urn:btih:${t.hash}&dn=${encodeURIComponent(t.title)}${TRACKER_STRING}`,
-      score: calculateScore({ name: t.title, seeders: t.seeds }) + 50,
-      // Boost EZTV for series
+      score: calculateScore({ name: t.title, seeders: t.seeds, leechers: t.peers }, "EZTV"),
       source: "EZTV"
     })).filter((t) => !isNSFW(t));
   } catch (error) {
@@ -31500,18 +31533,108 @@ const searchEZTV = async (imdbId) => {
     return [];
   }
 };
+const searchTorrentsCSV = async (query) => {
+  try {
+    const response = await axios.get(`https://torrents-csv.com/service/search?q=${encodeURIComponent(query)}&size=20`);
+    const results = response.data.torrents;
+    if (!results || !Array.isArray(results)) return [];
+    return results.map((t) => {
+      var _a2, _b, _c;
+      return {
+        id: t.infohash,
+        name: t.name,
+        info_hash: t.infohash,
+        leechers: ((_a2 = t.leechers) == null ? void 0 : _a2.toString()) || "0",
+        seeders: ((_b = t.seeders) == null ? void 0 : _b.toString()) || "0",
+        num_files: "1",
+        // API doesn't always provide this
+        size: ((_c = t.size_bytes) == null ? void 0 : _c.toString()) || "0",
+        username: "TorrentsCSV",
+        added: (/* @__PURE__ */ new Date()).toISOString(),
+        status: "active",
+        category: "Mixed",
+        imdb: "",
+        magnet: `magnet:?xt=urn:btih:${t.infohash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
+        score: calculateScore({ name: t.name, seeders: t.seeders, leechers: t.leechers }, "TorrentsCSV"),
+        source: "TorrentsCSV"
+      };
+    }).filter((t) => !isNSFW(t));
+  } catch (error) {
+    console.error("[Torrent] TorrentsCSV error:", error);
+    return [];
+  }
+};
+const searchBitSearch = async (query) => {
+  try {
+    const response = await axios.get(`https://bitsearch.to/search?q=${encodeURIComponent(query)}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        "Referer": "https://bitsearch.to/"
+      }
+    });
+    const $2 = load(response.data);
+    const results = [];
+    $2("li.search-result").each((i, el) => {
+      var _a2;
+      if (results.length >= 20) return;
+      const title = $2(el).find("h5.title a").text().trim();
+      const magnet = $2(el).find('a[href^="magnet:"]').attr("href");
+      const stats = $2(el).find(".stats div");
+      if (magnet && title) {
+        const size = $2(el).find(".stats div:nth-child(2)").text().trim();
+        const seeds = $2(el).find(".stats div:nth-child(3)").text().trim().replace(/,/g, "");
+        const leeches = $2(el).find(".stats div:nth-child(4)").text().trim().replace(/,/g, "");
+        results.push({
+          id: `bitsearch-${i}`,
+          name: title,
+          info_hash: ((_a2 = magnet.match(/xt=urn:btih:([a-zA-Z0-9]+)/)) == null ? void 0 : _a2[1]) || "",
+          leechers: leeches || "0",
+          seeders: seeds || "0",
+          num_files: "1",
+          size,
+          username: "BitSearch",
+          added: (/* @__PURE__ */ new Date()).toISOString(),
+          status: "active",
+          category: "Mixed",
+          imdb: "",
+          magnet,
+          score: calculateScore({ name: title, seeders: seeds, leechers: leeches }, "BitSearch"),
+          source: "BitSearch"
+        });
+      }
+    });
+    return results.filter((t) => !isNSFW(t));
+  } catch (error) {
+    console.error("[Torrent] BitSearch error:", error);
+    return [];
+  }
+};
 async function getTorrentList(query, imdbId, type2) {
   console.log(`[Torrent] Aggregating search for: ${query}, ID: ${imdbId}, Type: ${type2}`);
-  const promises = [];
-  promises.push(searchAPIBay(query));
+  const searchTasks = [];
+  searchTasks.push({ name: "APIBay", promise: searchAPIBay(query) });
   if (type2 !== "series") {
-    promises.push(searchYTS(query));
+    searchTasks.push({ name: "YTS", promise: searchYTS(query) });
   }
   if ((type2 === "series" || !type2) && imdbId) {
-    promises.push(searchEZTV(imdbId));
+    searchTasks.push({ name: "EZTV", promise: searchEZTV(imdbId) });
   }
-  const resultsArray = await Promise.all(promises);
-  const allResults = resultsArray.flat();
+  searchTasks.push({ name: "TorrentsCSV", promise: searchTorrentsCSV(query) });
+  searchTasks.push({ name: "BitSearch", promise: searchBitSearch(query) });
+  const resultsArray = await Promise.all(searchTasks.map((t) => t.promise));
+  const allResults = [];
+  console.log("--- Torrent Search Report ---");
+  resultsArray.forEach((res, idx) => {
+    const sourceName = searchTasks[idx].name;
+    const count = res.length;
+    console.log(`[Torrent] Source: ${sourceName.padEnd(12)} | Results: ${count}`);
+    allResults.push(...res);
+  });
+  console.log(`[Torrent] Total aggregated results: ${allResults.length}`);
+  console.log("-----------------------------");
   const uniqueResultsMap = /* @__PURE__ */ new Map();
   allResults.forEach((torrent) => {
     var _a2;
@@ -124818,9 +124941,9 @@ function runUniversalDetector(buffer2, options) {
   u.close();
   return u;
 }
-var jschardet$1 = src;
-const jschardet = /* @__PURE__ */ getDefaultExportFromCjs(jschardet$1);
-const SUBS_CACHE_DIR = require$$1$2.join(app.getPath("userData"), "PrismoPlayerSubs");
+var jschardet = src;
+const jschardet$1 = /* @__PURE__ */ getDefaultExportFromCjs(jschardet);
+const SUBS_CACHE_DIR = require$$1$2.join(app$1.getPath("userData"), "PrismoPlayerSubs");
 if (!fs$1.existsSync(SUBS_CACHE_DIR)) {
   fs$1.mkdirSync(SUBS_CACHE_DIR, { recursive: true });
 }
@@ -124873,10 +124996,45 @@ const listYIFY = async (imdbId) => {
     return [];
   }
 };
+const listOpenSubtitles = async (imdbId) => {
+  var _a2;
+  const settings = getSettings();
+  const apiKey = settings.openSubtitlesApiKey;
+  if (!apiKey) return [];
+  const numericId = imdbId.replace("tt", "");
+  const url2 = `https://api.opensubtitles.com/api/v1/subtitles?imdb_id=${numericId}&languages=en,tr&order_by=download_count&sort=desc`;
+  try {
+    console.log(`[OpenSubtitles] Listing from: ${url2}`);
+    const { data: data2 } = await axios.get(url2, {
+      headers: {
+        "Api-Key": apiKey,
+        "Content-Type": "application/json",
+        "User-Agent": "PrismoPlayer v1.0"
+      }
+    });
+    if (!data2 || !data2.data) return [];
+    return data2.data.map((item) => ({
+      id: item.attributes.files[0].file_id.toString(),
+      // Store file_id
+      lang: item.attributes.language === "tr" ? "tr" : "en",
+      name: `${item.attributes.language === "tr" ? "🇹🇷" : "🇺🇸"} ${item.attributes.release} (★${item.attributes.ratings}) [OS]`,
+      url: "",
+      // Not used for direct download, we use ID
+      rating: item.attributes.ratings,
+      source: "OpenSubtitles"
+    }));
+  } catch (error) {
+    console.error("[OpenSubtitles] Error:", ((_a2 = error.response) == null ? void 0 : _a2.data) || error.message);
+    return [];
+  }
+};
 const listSubtitles = async (imdbId) => {
   console.log(`[Subtitles] Aggregating for ${imdbId}`);
-  const yify = await listYIFY(imdbId);
-  return yify.sort((a, b) => {
+  const yifyPromise = listYIFY(imdbId);
+  const osPromise = listOpenSubtitles(imdbId);
+  const [yify, os] = await Promise.all([yifyPromise, osPromise]);
+  const combined = [...yify, ...os];
+  return combined.sort((a, b) => {
     if (a.lang === "tr" && b.lang !== "tr") return -1;
     if (a.lang !== "tr" && b.lang === "tr") return 1;
     return b.rating - a.rating;
@@ -124884,11 +125042,11 @@ const listSubtitles = async (imdbId) => {
 };
 const downloadSubtitle = async (item, imdbId) => {
   try {
-    let zipUrl = "";
+    let downloadUrl = "";
     if (item.source === "YIFY") {
       const { data: data2 } = await axios.get(item.url, { ...AXIOS_CONFIG, responseType: "text" });
       const $2 = load(data2);
-      zipUrl = $2("a.btn-icon.download-subtitle").attr("href") || $2("a.download-subtitle").attr("href") || "";
+      let zipUrl = $2("a.btn-icon.download-subtitle").attr("href") || $2("a.download-subtitle").attr("href") || "";
       if (!zipUrl) {
         $2("a").each((_, el) => {
           const h = $2(el).attr("href");
@@ -124899,11 +125057,44 @@ const downloadSubtitle = async (item, imdbId) => {
         });
       }
       if (zipUrl && !zipUrl.startsWith("http")) zipUrl = `https://yifysubtitles.org${zipUrl}`;
+      downloadUrl = zipUrl;
+    } else if (item.source === "OpenSubtitles") {
+      const settings = getSettings();
+      const apiKey = settings.openSubtitlesApiKey;
+      if (!apiKey) throw new Error("No API Key");
+      const { data: data2 } = await axios.post("https://api.opensubtitles.com/api/v1/download", {
+        file_id: parseInt(item.id)
+      }, {
+        headers: {
+          "Api-Key": apiKey,
+          "Content-Type": "application/json",
+          "User-Agent": "PrismoPlayer v1.0"
+        }
+      });
+      if (data2 && data2.link) {
+        downloadUrl = data2.link;
+      }
     }
-    if (zipUrl) {
-      console.log(`[Subtitles] Downloading ZIP: ${zipUrl}`);
-      const { data: zipData } = await axios.get(zipUrl, { ...AXIOS_CONFIG });
-      return processZipBuffer(zipData, item.lang, imdbId, item.source);
+    if (downloadUrl) {
+      console.log(`[Subtitles] Downloading: ${downloadUrl}`);
+      const { data: fileData } = await axios.get(downloadUrl, { ...AXIOS_CONFIG, responseType: "arraybuffer" });
+      const isZip = fileData[0] === 80 && fileData[1] === 75;
+      if (isZip) {
+        return processZipBuffer(fileData, item.lang, imdbId, item.source);
+      } else {
+        const buffer2 = Buffer.from(fileData);
+        const detected = jschardet$1.detect(buffer2);
+        const encoding = detected.encoding || "utf-8";
+        const srtData = iconv.decode(buffer2, encoding);
+        let vttData = srtData;
+        if (!srtData.trim().startsWith("WEBVTT")) {
+          vttData = srtToVtt(srtData);
+        }
+        const filename = `${imdbId}-${item.lang}-${item.source}-${Date.now()}.vtt`;
+        const filePath = require$$1$2.join(SUBS_CACHE_DIR, filename);
+        fs$1.writeFileSync(filePath, vttData);
+        return `file://${filePath}`;
+      }
     }
     return null;
   } catch (error) {
@@ -124918,7 +125109,7 @@ const processZipBuffer = (buffer2, lang, imdbId, source) => {
     const srtEntry = zipEntries.find((entry) => entry.entryName.endsWith(".srt"));
     if (!srtEntry) return null;
     const srtBuffer = srtEntry.getData();
-    const detected = jschardet.detect(srtBuffer);
+    const detected = jschardet$1.detect(srtBuffer);
     let encoding = detected.encoding || "utf-8";
     if (lang === "tr" && (encoding === "windows-1252" || encoding === "ISO-8859-1")) {
       encoding = "windows-1254";
@@ -124934,6 +125125,40 @@ const processZipBuffer = (buffer2, lang, imdbId, source) => {
     return null;
   }
 };
+const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".m4v"];
+const generateId = (filePath) => {
+  return crypto$1.createHash("md5").update(filePath).digest("hex");
+};
+const scanFolder = async (folderPath) => {
+  const results = [];
+  try {
+    const entries = await fs$2.promises.readdir(folderPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path$1.join(folderPath, entry.name);
+      if (entry.isDirectory()) {
+        const subResults = await scanFolder(fullPath);
+        results.push(...subResults);
+      } else if (entry.isFile()) {
+        const ext = path$1.extname(entry.name).toLowerCase();
+        if (VIDEO_EXTENSIONS.includes(ext)) {
+          const stats = await fs$2.promises.stat(fullPath);
+          results.push({
+            id: generateId(fullPath),
+            path: fullPath,
+            name: entry.name,
+            size: stats.size,
+            birthtime: stats.birthtimeMs,
+            format: ext.replace(".", "")
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`[Library] Error scanning folder ${folderPath}:`, error);
+  }
+  return results;
+};
+const { app, BrowserWindow, ipcMain } = electron;
 const require$1 = createRequire(import.meta.url);
 const __dirname$1 = path$1.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path$1.join(__dirname$1, "..");
@@ -125037,8 +125262,8 @@ app.whenReady().then(() => {
   ipcMain.handle("get-series-details", async (_, imdbId) => {
     return await getSeriesDetails(imdbId);
   });
-  ipcMain.handle("start-torrent", async (_, magnetLink) => {
-    return await startTorrent(magnetLink);
+  ipcMain.handle("start-torrent", async (_, magnetLink, fileIndex) => {
+    return await startTorrent(magnetLink, fileIndex);
   });
   ipcMain.handle("stop-torrent", async (_, magnetLink) => {
     return stopTorrent(magnetLink);
@@ -125075,6 +125300,19 @@ app.whenReady().then(() => {
       console.error("Failed to clear cache via IPC", e);
       throw e;
     }
+  });
+  ipcMain.handle("library:open-folder", async () => {
+    const { dialog } = require$1("electron");
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory", "multiSelections"]
+    });
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths;
+    }
+    return [];
+  });
+  ipcMain.handle("library:scan-folder", async (_, folderPath) => {
+    return await scanFolder(folderPath);
   });
   createWindow();
 });

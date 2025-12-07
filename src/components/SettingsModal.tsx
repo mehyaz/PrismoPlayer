@@ -64,9 +64,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-6 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={onClose} />
-            
+
             <div className="relative bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-                
+
                 {/* Header */}
                 <div className="p-5 border-b border-white/10 bg-white/5 flex justify-between items-center">
                     <div className="flex items-center gap-3">
@@ -116,6 +116,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 </div>
                             </div>
 
+                            {/* OpenSubtitles API Key */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white/80">OpenSubtitles API Key</label>
+                                <p className="text-xs text-white/40">Required for additional subtitles. <a href="https://www.opensubtitles.com/en/consumers" target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">Get a free key here.</a></p>
+                                <input
+                                    type="text"
+                                    value={settings.openSubtitlesApiKey || ''}
+                                    onChange={(e) => setSettings({ ...settings, openSubtitlesApiKey: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all font-mono text-sm placeholder:text-white/20"
+                                    placeholder="Enter your API Key..."
+                                />
+                            </div>
+
                             {/* Download Path (Read Only) */}
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-white/80 flex items-center gap-2">
@@ -145,13 +158,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 {/* Footer */}
                 <div className="p-5 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="px-4 py-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-sm font-medium"
                     >
                         Cancel
                     </button>
-                    <button 
+                    <button
                         onClick={handleSave}
                         disabled={isSaving}
                         className="px-6 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 transition-all text-sm font-medium flex items-center gap-2 disabled:opacity-50"

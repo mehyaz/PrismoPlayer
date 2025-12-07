@@ -1,9 +1,10 @@
 {
-  "name": "prismo",
+  "name": "prismo-player",
   "private": true,
-  "version": "1.2.0",
-  "type": "module",
+  "version": "1.1.3",
+  "main": "dist-electron/main.js",
   "description": "Premium video player with intelligent content filtering",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",

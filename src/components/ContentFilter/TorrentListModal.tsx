@@ -11,8 +11,8 @@ interface TorrentListModalProps {
     isLoading: boolean;
 }
 
-export const TorrentListModal: React.FC<TorrentListModalProps> = ({ 
-    isOpen, onClose, torrents, movie, onSelectTorrent, isLoading 
+export const TorrentListModal: React.FC<TorrentListModalProps> = ({
+    isOpen, onClose, torrents, movie, onSelectTorrent, isLoading
 }) => {
     if (!isOpen) return null;
 
@@ -29,12 +29,20 @@ export const TorrentListModal: React.FC<TorrentListModalProps> = ({
         return parseFloat((size / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const getHealthColor = (seeds: string) => {
+        const s = parseInt(seeds);
+        if (isNaN(s)) return 'text-white/40';
+        if (s > 20) return 'text-green-400';
+        if (s > 5) return 'text-yellow-400';
+        return 'text-red-400';
+    };
+
     return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={onClose} />
-            
+
             <div className="relative w-full max-w-4xl bg-gray-900/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">
-                
+
                 {/* Header */}
                 <div className="p-6 border-b border-white/10 bg-white/5 flex justify-between items-center">
                     <div>
@@ -74,7 +82,7 @@ export const TorrentListModal: React.FC<TorrentListModalProps> = ({
                                     <div className="p-3 bg-white/5 rounded-lg group-hover:bg-purple-500/20 group-hover:text-purple-400 transition-colors">
                                         <FileVideo size={24} />
                                     </div>
-                                    
+
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-white font-medium truncate pr-4" title={torrent.name}>
                                             {torrent.name}
@@ -91,13 +99,13 @@ export const TorrentListModal: React.FC<TorrentListModalProps> = ({
 
                                     <div className="flex items-center gap-6 text-sm tabular-nums">
                                         <div className="flex flex-col items-end">
-                                            <span className="flex items-center gap-1.5 text-green-400 font-bold">
+                                            <span className={`flex items-center gap-1.5 font-bold ${getHealthColor(torrent.seeders)}`}>
                                                 <Users size={14} />
                                                 {torrent.seeders}
                                             </span>
                                             <span className="text-[10px] text-white/20">Seeds</span>
                                         </div>
-                                        <div className="flex flex-col items-end text-red-400/60">
+                                        <div className="flex flex-col items-end text-red-500/40">
                                             <span>{torrent.leechers}</span>
                                             <span className="text-[10px] text-white/20">Leech</span>
                                         </div>

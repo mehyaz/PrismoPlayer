@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useSkipEngine } from '../../hooks/useSkipEngine';
-import { SkipSegment, SubtitleItem, SubtitleTrack } from '../../types';
+import { SkipSegment, SubtitleItem } from '../../types';
 import {
     Play,
     Pause,
@@ -15,13 +15,14 @@ import {
     SkipBack,
     SkipForward,
     ArrowLeft,
-    Signal,
     Check,
     Languages,
     Download,
     ShieldAlert,
     RefreshCw,
-    Loader2
+    Gauge,
+    PictureInPicture2,
+    Music
 } from 'lucide-react';
 
 const formatTime = (time: number) => {
@@ -42,30 +43,34 @@ interface VideoPlayerProps {
     onOpenVLC?: () => void; // New
     availableSubtitles: SubtitleItem[];
     onDownloadSubtitle: (item: SubtitleItem) => Promise<string | null>;
+    initialTime?: number;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     src, skipSegments = [], onTimeUpdate, onBack, availableSubtitles, onDownloadSubtitle,
-    onChangeSource, onCheckContent, onOpenVLC 
+    onChangeSource, onCheckContent, onOpenVLC, initialTime = 0
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const controlsTimeoutRef = useRef<NodeJS.Timeout>();
 
-    const [currentTime, setCurrentTime] = useState(0);
+    const [currentTime, setCurrentTime] = useState(initialTime);
     const [duration, setDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.8);
     const [isMuted, setIsMuted] = useState(false);
     const [showControls, setShowControls] = useState(true);
-    const [subtitleSrc, setSubtitleSrc] = useState<string>(''); 
+    const [subtitleSrc, setSubtitleSrc] = useState<string>('');
     const [activeTrackLabel, setActiveTrackLabel] = useState<string>('Off');
-    
+
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [isDownloadingSub, setIsDownloadingSub] = useState(false);
     const [isBuffering, setIsBuffering] = useState(true); // Start buffering by default
+    const [error, setError] = useState<string | null>(null);
+    const [audioTracks, setAudioTracks] = useState<any[]>([]);
+    const [activeAudioTrack, setActiveAudioTrack] = useState<number>(0);
 
     useSkipEngine({
         currentTime,
@@ -74,6 +79,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             if (videoRef.current) videoRef.current.currentTime = time;
         },
     });
+
+    const [playbackRate, setPlaybackRate] = useState(1);
+
+    const togglePiP = useCallback(async () => {
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else if (videoRef.current && videoRef.current !== document.pictureInPictureElement) {
+                await videoRef.current.requestPictureInPicture();
+            }
+        } catch (err) {
+            console.error('PiP failed:', err);
+        }
+    }, []);
 
     const togglePlay = useCallback(() => {
         if (!videoRef.current) return;
@@ -171,7 +190,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const handleLoadedMetadata = useCallback(() => {
         if (videoRef.current) {
             setDuration(videoRef.current.duration);
-            
+            if (initialTime > 0) {
+                videoRef.current.currentTime = initialTime;
+            }
+
+            // Detect Audio Tracks
+            const video = videoRef.current as any;
+            if (video.audioTracks) {
+                const tracks = [];
+                for (let i = 0; i < video.audioTracks.length; i++) {
+                    tracks.push({
+                        id: i,
+                        label: video.audioTracks[i].label || `Track ${i + 1}`,
+                        language: video.audioTracks[i].language,
+                        enabled: video.audioTracks[i].enabled
+                    });
+                    if (video.audioTracks[i].enabled) {
+                        setActiveAudioTrack(i);
+                    }
+                }
+                setAudioTracks(tracks);
+            }
+
             setTimeout(() => {
                 if (videoRef.current) {
                     const video = videoRef.current as any;
@@ -183,6 +223,27 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             }, 1000);
         }
     }, []);
+
+    const changeAudioTrack = (index: number) => {
+        const video = videoRef.current as any;
+        if (video && video.audioTracks) {
+            for (let i = 0; i < video.audioTracks.length; i++) {
+                video.audioTracks[i].enabled = (i === index);
+            }
+            setActiveAudioTrack(index);
+            // Refresh list to update UI checkmarks if needed, though state update handles the active index
+            const tracks = [];
+            for (let i = 0; i < video.audioTracks.length; i++) {
+                tracks.push({
+                    id: i,
+                    label: video.audioTracks[i].label || `Track ${i + 1}`,
+                    language: video.audioTracks[i].language,
+                    enabled: video.audioTracks[i].enabled
+                });
+            }
+            setAudioTracks(tracks);
+        }
+    };
 
     const handleMouseMove = useCallback(() => {
         setShowControls(true);
@@ -199,8 +260,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             switch (e.code) {
                 case 'ArrowLeft': seek(-5); break;
                 case 'ArrowRight': seek(5); break;
-                case 'ArrowUp': setVolume((v) => { const nv = Math.min(1, v + 0.1); if(videoRef.current) videoRef.current.volume = nv; return nv; }); break;
-                case 'ArrowDown': setVolume((v) => { const nv = Math.max(0, v - 0.1); if(videoRef.current) videoRef.current.volume = nv; return nv; }); break;
+                case 'ArrowUp': setVolume((v) => { const nv = Math.min(1, v + 0.1); if (videoRef.current) videoRef.current.volume = nv; return nv; }); break;
+                case 'ArrowDown': setVolume((v) => { const nv = Math.max(0, v - 0.1); if (videoRef.current) videoRef.current.volume = nv; return nv; }); break;
                 case 'KeyF': toggleFullscreen(); break;
                 case 'KeyK': case 'Space': togglePlay(); break;
                 case 'KeyM': toggleMute(); break;
@@ -221,7 +282,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
-        
+
         const onPlaying = () => {
             setIsPlaying(true);
             setIsBuffering(false);
@@ -234,9 +295,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         video.addEventListener('pause', onPause);
         video.addEventListener('waiting', onWaiting);
         video.addEventListener('canplay', onCanPlay);
-        
+
         video.volume = isMuted ? 0 : volume;
-        
+
         return () => {
             video.removeEventListener('playing', onPlaying);
             video.removeEventListener('pause', onPause);
@@ -273,16 +334,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             onMouseMove={handleMouseMove}
             onMouseLeave={() => isPlaying && setShowControls(false)}
         >
-            {/* Buffering Overlay */}
             {isBuffering && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-black/40 pointer-events-none backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="relative">
                         <div className="absolute inset-0 bg-cyan-500 blur-2xl opacity-20 animate-pulse rounded-full"></div>
                         <RefreshCw className="relative z-10 text-cyan-400 animate-spin w-12 h-12" />
                     </div>
                     <p className="mt-4 text-white/60 text-sm font-medium animate-pulse">Buffering video...</p>
+                    <button
+                        onClick={onBack}
+                        className="mt-6 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm font-medium transition-colors border border-white/5"
+                    >
+                        Cancel
+                    </button>
                 </div>
             )}
+
+
 
             <video
                 ref={videoRef}
@@ -295,6 +363,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 onError={(e) => {
                     console.error('Video error:', e);
                     setIsBuffering(false);
+                    setError('Playback failed. The source might be unavailable.');
                 }}
                 autoPlay
                 playsInline
@@ -306,32 +375,54 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 Your browser does not support the video tag.
             </video>
 
+            {/* Error Overlay */}
+            {error && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/90 text-white animate-in fade-in">
+                    <ShieldAlert size={48} className="text-red-500 mb-4" />
+                    <p className="text-lg font-medium mb-2">{error}</p>
+                    <button
+                        onClick={onBack}
+                        className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    >
+                        Go Back
+                    </button>
+                </div>
+            )}
+
             {/* Top Bar */}
-            <div 
+            <div
                 className={`absolute top-0 left-0 right-0 p-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20 transition-opacity duration-300 flex justify-between items-center ${showControls ? 'opacity-100' : 'opacity-0'}`}
             >
-                <button 
+                <button
                     onClick={onBack}
                     className="flex items-center gap-2 text-white/80 hover:text-white bg-black/20 hover:bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm transition-all border border-white/5"
                 >
                     <ArrowLeft size={20} />
                     <span className="font-medium text-sm">Back to Menu</span>
                 </button>
-                
+
                 <div className="flex gap-3">
                     {onCheckContent && (
-                        <button 
-                            onClick={onCheckContent} 
-                            className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-orange-400 backdrop-blur-sm transition-all" 
+                        <button
+                            onClick={onCheckContent}
+                            className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-orange-400 backdrop-blur-sm transition-all"
                             title="Content Guide"
                         >
                             <ShieldAlert size={20} />
                         </button>
                     )}
 
-                    <button 
-                        onClick={toggleFullscreen} 
-                        className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-white backdrop-blur-sm transition-all" 
+                    <button
+                        onClick={togglePiP}
+                        className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-white backdrop-blur-sm transition-all"
+                        title="Picture in Picture"
+                    >
+                        <PictureInPicture2 size={20} />
+                    </button>
+
+                    <button
+                        onClick={toggleFullscreen}
+                        className="p-2.5 rounded-full bg-black/20 text-white/80 hover:bg-white/20 hover:text-white backdrop-blur-sm transition-all"
                         title="Fullscreen"
                     >
                         {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
@@ -340,15 +431,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </div>
 
             {/* Bottom Controls */}
-            <div 
+            <div
                 className={`absolute bottom-0 left-0 right-0 px-6 py-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20 transition-all duration-300 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
             >
                 {/* Progress Bar */}
-                <div 
+                <div
                     className="relative w-full h-1.5 hover:h-2.5 bg-white/20 rounded-full cursor-pointer mb-4 group/progress transition-all"
                     onClick={handleProgressClick}
                 >
-                    <div 
+                    <div
                         className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full relative"
                         style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
                     >
@@ -379,16 +470,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 relative">
-                         <button onClick={() => seek(-10)} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="-10s"><SkipBack size={22} /></button>
+                        <button onClick={() => seek(-10)} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="-10s"><SkipBack size={22} /></button>
                         <button onClick={() => seek(10)} className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors" title="+10s"><SkipForward size={22} /></button>
-                        
+
                         <div className="w-px h-6 bg-white/10 mx-2" />
 
                         <div className="relative">
                             <button onClick={() => setShowSettings((s) => !s)} className={`text-white/70 hover:text-white p-2 rounded-full transition-colors ${showSettings ? 'bg-white/10 text-white' : ''}`}>
                                 <Settings size={22} />
                             </button>
-                            
+
                             {/* Settings Dropdown */}
                             {showSettings && (
                                 <div className="absolute bottom-full right-0 mb-4 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 max-h-96 flex flex-col">
@@ -396,17 +487,53 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                                         <span className="font-semibold text-white text-sm">Settings</span>
                                         <button onClick={() => setShowSettings(false)} className="text-white/40 hover:text-white"><X size={16} /></button>
                                     </div>
-                                    
+
                                     <div className="p-2 space-y-1 overflow-y-auto scrollbar-hide">
+                                        {/* Speed Control */}
+                                        <button onClick={() => {
+                                            const speeds = [0.5, 1, 1.25, 1.5, 2];
+                                            const currentIdx = speeds.indexOf(playbackRate);
+                                            const nextSpeed = speeds[(currentIdx + 1) % speeds.length];
+                                            setPlaybackRate(nextSpeed);
+                                            if (videoRef.current) videoRef.current.playbackRate = nextSpeed;
+                                        }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
+                                            <span className="flex items-center gap-2"><Gauge size={16} className="text-pink-400" /> Speed</span>
+                                            <span className="font-mono text-xs opacity-60">{playbackRate}x</span>
+                                        </button>
+
+                                        <div className="h-px bg-white/10 my-1" />
+
+                                        {audioTracks.length > 1 && (
+                                            <>
+                                                <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Audio</div>
+                                                {audioTracks.map((track) => (
+                                                    <button
+                                                        key={track.id}
+                                                        onClick={() => changeAudioTrack(track.id)}
+                                                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <Music size={16} className={activeAudioTrack === track.id ? "text-cyan-400" : "text-white/40"} />
+                                                            {track.label}
+                                                            {track.language && <span className="text-[10px] bg-white/10 px-1.5 rounded uppercase">{track.language}</span>}
+                                                        </span>
+                                                        {activeAudioTrack === track.id && <Check size={14} className="text-cyan-400" />}
+                                                    </button>
+                                                ))}
+                                                <div className="h-px bg-white/10 my-1" />
+                                            </>
+                                        )}
+
+
                                         {/* Actions Section */}
                                         <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Actions</div>
-                                        
+
                                         {onChangeSource && (
                                             <button onClick={() => { setShowSettings(false); onChangeSource(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
                                                 <span className="flex items-center gap-2"><RefreshCw size={16} className="text-cyan-400" /> Change Source</span>
                                             </button>
                                         )}
-                                        
+
                                         {onCheckContent && (
                                             <button onClick={() => { setShowSettings(false); onCheckContent(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
                                                 <span className="flex items-center gap-2"><ShieldAlert size={16} className="text-orange-400" /> Parents Guide</span>
@@ -441,7 +568,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                                         <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white flex items-center gap-2">
                                             <ClosedCaption size={16} className="text-yellow-400" /> Upload Custom (.srt)
                                         </button>
-                                        
+
                                         <div className="h-px bg-white/10 my-1" />
                                         <button onClick={() => { if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.pause(); setIsPlaying(false); } setShowSettings(false); }} className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors flex items-center gap-2">
                                             <RotateCcw size={16} /> Reset Video

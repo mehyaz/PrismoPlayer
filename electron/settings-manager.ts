@@ -8,24 +8,27 @@ export interface AppSettings {
     cacheLimitGB: number;
     uploadLimitKB: number; // KB/s
     downloadsPath: string;
+    openSubtitlesApiKey: string;
 }
 
-const defaultSettings: AppSettings = {
-    cacheLimitGB: 15,
-    uploadLimitKB: 2048, // 2 MB/s
-    downloadsPath: path.join(app.getPath('userData'), 'PrismoPlayerCache')
+const DEFAULT_SETTINGS: AppSettings = {
+    cacheLimitGB: 10,
+    uploadLimitKB: 0, // 2 MB/s
+    downloadsPath: path.join(app.getPath('downloads'), 'PrismoPlayer'),
+    openSubtitlesApiKey: ''
 };
 
 export const getSettings = (): AppSettings => {
+    if (!fs.existsSync(settingsPath)) {
+        return DEFAULT_SETTINGS;
+    }
     try {
-        if (fs.existsSync(settingsPath)) {
-            const data = fs.readFileSync(settingsPath, 'utf-8');
-            return { ...defaultSettings, ...JSON.parse(data) };
-        }
+        const data = fs.readFileSync(settingsPath, 'utf-8');
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
     } catch (error) {
         console.error('[Settings] Failed to read settings:', error);
+        return DEFAULT_SETTINGS;
     }
-    return defaultSettings;
 };
 
 export const saveSettings = (settings: Partial<AppSettings>) => {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VideoPlayer } from './components/Player/VideoPlayer';
-import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem, TorrentItem, Episode } from './types';
-import { FolderOpen, Clock } from 'lucide-react';
+import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem, TorrentItem, Episode, TorrentFile } from './types';
+import { FileSelectionModal } from './components/ContentFilter/FileSelectionModal';
+import { Clock } from 'lucide-react';
 import { SearchModal } from './components/ContentFilter/SearchModal';
 import { ParentsGuideView } from './components/ContentFilter/ParentsGuideView';
 import { SkipCreatorModal } from './components/ContentFilter/SkipCreatorModal';
@@ -12,6 +13,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { MainLayout } from './components/Layout/MainLayout';
 import { Hero } from './components/Home/Hero';
 import { LoadingOverlay } from './components/Player/LoadingOverlay';
+import { LibraryView } from './components/Library/LibraryView';
 
 function App() {
   const [videoSrc, setVideoSrc] = useState<string>('');
@@ -20,6 +22,11 @@ function App() {
   const [downloadStats, setDownloadStats] = useState<TorrentProgress | null>(null);
   const [subtitleList, setSubtitleList] = useState<SubtitleItem[]>([]);
   const [torrentList, setTorrentList] = useState<TorrentItem[]>([]);
+
+  // New State for File Selection
+  const [isFileSelectionOpen, setIsFileSelectionOpen] = useState(false);
+  const [pendingTorrentMagnet, setPendingTorrentMagnet] = useState<string>('');
+  const [availableFiles, setAvailableFiles] = useState<TorrentFile[]>([]);
 
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
   const [searchError, setSearchError] = useState('');
@@ -39,8 +46,12 @@ function App() {
 
   const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
   const [recentlyWatched, setRecentlyWatched] = useState<RecentlyWatchedItem[]>([]);
+  // State for tracking actual playable source (magnet or file path) and resume time
+  const [activeSource, setActiveSource] = useState<string>('');
+  const [initialPlaybackTime, setInitialPlaybackTime] = useState(0);
 
   const playerCurrentTimeRef = useRef(playerCurrentTime);
+  const activeSourceRef = useRef(activeSource); // Ref to access inside interval
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const videoDurationRef = useRef(0);
 
@@ -123,15 +134,19 @@ function App() {
   }, [selectedMovie]);
 
   useEffect(() => {
-    if (videoSrc) {
+    activeSourceRef.current = activeSource;
+  }, [activeSource]);
+
+  useEffect(() => {
+    if (videoSrc && activeSource) {
       const interval = setInterval(() => {
         if (playerCurrentTimeRef.current > 0) {
-          updateRecentlyWatched(videoSrc, playerCurrentTimeRef.current);
+          updateRecentlyWatched(activeSource, playerCurrentTimeRef.current);
         }
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [videoSrc, updateRecentlyWatched]);
+  }, [videoSrc, activeSource, updateRecentlyWatched]);
 
   const saveSkips = useCallback((newSkips: SkipSegment[]) => {
     setSkipSegments(newSkips);
@@ -176,6 +191,7 @@ function App() {
       const filePath = await window.ipcRenderer.invoke('dialog:openFile');
       if (filePath) {
         setVideoSrc(`file://${filePath}`);
+        setActiveSource(`file://${filePath}`);
       }
     } catch (error) {
       console.error('Error opening file', error);
@@ -183,10 +199,16 @@ function App() {
     }
   }, []);
 
-  const handleTorrentStream = useCallback(async (magnet: string) => {
+  const handleTorrentStream = useCallback(async (magnet: string, fileIndex?: number) => {
     if (!magnet) return;
     setIsLoading(true);
     setIsTorrentListOpen(false);
+
+    // If starting a new torrent flow without specific file index, clear previous pending state
+    if (fileIndex === undefined) {
+      setPendingTorrentMagnet('');
+      setAvailableFiles([]);
+    }
 
     if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     loadingTimeoutRef.current = setTimeout(() => {
@@ -196,13 +218,21 @@ function App() {
     }, 60000);
 
     try {
-      const url = await window.ipcRenderer.invoke('start-torrent', magnet);
+      const response = await window.ipcRenderer.invoke('start-torrent', magnet, fileIndex);
 
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       setIsLoading(false);
 
-      if (url) {
-        setVideoSrc(url);
+      if (typeof response === 'string') {
+        // Direct URL received
+        setVideoSrc(response);
+        setActiveSource(magnet); // Track original magnet
+        setIsFileSelectionOpen(false);
+      } else if (response && response.status === 'select-files') {
+        // Multiple files found, ask user
+        setPendingTorrentMagnet(magnet);
+        setAvailableFiles(response.files);
+        setIsFileSelectionOpen(true);
       } else {
         alert('Failed to start torrent. No streaming URL received.');
       }
@@ -216,6 +246,12 @@ function App() {
       }
     }
   }, [handleCancelLoading]);
+
+  const handleFileSelected = useCallback((index: number) => {
+    if (pendingTorrentMagnet) {
+      handleTorrentStream(pendingTorrentMagnet, index);
+    }
+  }, [pendingTorrentMagnet, handleTorrentStream]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setPlayerCurrentTime(time);
@@ -380,6 +416,22 @@ function App() {
     localStorage.removeItem('recentlyWatched');
   }, []);
 
+  const handleResumeWatch = useCallback((item: RecentlyWatchedItem) => {
+    // Determine type by checking prefix
+    setInitialPlaybackTime(item.progress);
+
+    if (item.path.startsWith('magnet:')) {
+      handleTorrentStream(item.path);
+    } else if (item.path.includes('127.0.0.1') || item.path.includes('localhost')) {
+      // Stale local stream URL from old history
+      alert('This replay link is expired. Please search for the movie again.');
+    } else {
+      // Local file or direct link
+      setVideoSrc(item.path);
+      setActiveSource(item.path);
+    }
+  }, [handleTorrentStream]);
+
   // --- Render ---
 
   if (videoSrc) {
@@ -387,6 +439,7 @@ function App() {
       <div className="fixed inset-0 w-screen h-screen bg-black z-[9999] flex flex-col">
         <VideoPlayer
           src={videoSrc}
+          initialTime={initialPlaybackTime} // Pass resume time
           skipSegments={skipSegments}
           onTimeUpdate={handleTimeUpdate}
           onBack={handleBack}
@@ -433,6 +486,12 @@ function App() {
         />
 
         <SkipCreatorModal isOpen={isSkipCreatorOpen} onClose={() => setIsSkipCreatorOpen(false)} onSave={handleAddSkip} initialReason={skipCreatorInitialData.reason} currentTime={playerCurrentTime} />
+        <FileSelectionModal
+          isOpen={isFileSelectionOpen}
+          onClose={() => setIsFileSelectionOpen(false)}
+          files={availableFiles}
+          onSelect={handleFileSelected}
+        />
         <LoadingOverlay isVisible={isLoading} message="Buffering stream..." onCancel={handleCancelLoading} />
       </div>
     );
@@ -467,7 +526,7 @@ function App() {
                 {recentlyWatched.map((item, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setVideoSrc(item.path)}
+                    onClick={() => handleResumeWatch(item)}
                     className="relative group flex-shrink-0 w-64 aspect-video bg-white/5 rounded-xl overflow-hidden border border-white/5 hover:border-white/20 transition-all hover:scale-105 snap-start text-left"
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-black/40 flex flex-col justify-end p-4">
@@ -489,10 +548,13 @@ function App() {
 
       {/* Library Tab */}
       {activeTab === 'library' && (
-        <div className="flex flex-col items-center justify-center h-full text-white/40">
-          <FolderOpen size={64} className="mb-4 opacity-20" />
-          <p>Local Library feature coming soon...</p>
-        </div>
+        <LibraryView onPlay={(path) => {
+          // Use encodeURI to handle spaces and special characters in file path
+          const safePath = encodeURI(path);
+          setVideoSrc(`file://${safePath}`);
+          setActiveSource(`file://${path}`); // Keep raw path for history/display
+          // setActiveTab('home'); // No need to switch tab, video player overlay takes over
+        }} />
       )}
 
       {/* Modals */}
@@ -512,7 +574,7 @@ function App() {
         error={searchError}
       />
 
-      <RecentlyWatchedModal isOpen={isHistoryOpen} onClose={() => { setIsHistoryOpen(false); if (activeTab === 'history') setActiveTab('home'); }} items={recentlyWatched} onSelect={setVideoSrc} onClear={handleClearHistory} />
+      <RecentlyWatchedModal isOpen={isHistoryOpen} onClose={() => { setIsHistoryOpen(false); if (activeTab === 'history') setActiveTab('home'); }} items={recentlyWatched} onSelect={handleResumeWatch} onClear={handleClearHistory} />
 
       <TorrentListModal
         isOpen={isTorrentListOpen}

@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import electron from 'electron'
+const { app, BrowserWindow, ipcMain } = electron
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -9,6 +10,7 @@ import { searchTorrent, getTorrentList } from './torrent-search'
 import { torrentEmitter } from './event-emitter'
 import { getSettings, saveSettings } from './settings-manager'
 import { listSubtitles, downloadSubtitle } from './subtitle-handler'
+import { scanFolder } from './library-scanner'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -23,7 +25,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
-let win: BrowserWindow | null
+let win: electron.BrowserWindow | null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -64,27 +66,27 @@ function createWindow() {
 
 // Helper to open VLC
 const openInVlc = (url: string) => {
-    let command = 'vlc';
-    const args = [url];
+  let command = 'vlc';
+  const args = [url];
 
-    if (process.platform === 'darwin') {
-        command = '/Applications/VLC.app/Contents/MacOS/VLC';
-    } else if (process.platform === 'win32') {
-        command = 'vlc'; 
-    }
+  if (process.platform === 'darwin') {
+    command = '/Applications/VLC.app/Contents/MacOS/VLC';
+  } else if (process.platform === 'win32') {
+    command = 'vlc';
+  }
 
-    console.log(`[VLC] Opening ${url} with ${command}`);
-    try {
-        const child = spawn(command, args, { detached: true, stdio: 'ignore' });
-        child.on('error', (err) => {
-            console.error('[VLC] Failed to start VLC:', err);
-        });
-        child.unref();
-        return true;
-    } catch (err) {
-        console.error('[VLC] Error spawning process:', err);
-        return false;
-    }
+  console.log(`[VLC] Opening ${url} with ${command}`);
+  try {
+    const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+    child.on('error', (err) => {
+      console.error('[VLC] Failed to start VLC:', err);
+    });
+    child.unref();
+    return true;
+  } catch (err) {
+    console.error('[VLC] Error spawning process:', err);
+    return false;
+  }
 };
 
 // Quit when all windows are closed
@@ -139,8 +141,8 @@ app.whenReady().then(() => {
     return await getSeriesDetails(imdbId);
   });
 
-  ipcMain.handle('start-torrent', async (_, magnetLink) => {
-    return await startTorrent(magnetLink);
+  ipcMain.handle('start-torrent', async (_, magnetLink, fileIndex) => {
+    return await startTorrent(magnetLink, fileIndex);
   });
 
   ipcMain.handle('stop-torrent', async (_, magnetLink) => {
@@ -188,6 +190,23 @@ app.whenReady().then(() => {
       console.error('Failed to clear cache via IPC', e);
       throw e;
     }
+  });
+
+  // --- Library IPC ---
+  ipcMain.handle('library:open-folder', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'multiSelections']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths;
+    }
+    return [];
+  });
+
+  ipcMain.handle('library:scan-folder', async (_, folderPath) => {
+    return await scanFolder(folderPath);
   });
 
   createWindow();

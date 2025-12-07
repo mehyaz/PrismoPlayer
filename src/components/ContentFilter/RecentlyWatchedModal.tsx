@@ -6,7 +6,7 @@ interface RecentlyWatchedModalProps {
     isOpen: boolean;
     onClose: () => void;
     items: RecentlyWatchedItem[];
-    onSelect: (path: string) => void;
+    onSelect: (item: RecentlyWatchedItem) => void;
     onClear: () => void;
 }
 
@@ -60,7 +60,7 @@ export const RecentlyWatchedModal: React.FC<RecentlyWatchedModalProps> = ({
                             <button
                                 key={item.path}
                                 onClick={() => {
-                                    onSelect(item.path);
+                                    onSelect(item);
                                     onClose();
                                 }}
                                 className="w-full flex items-center gap-4 p-4 bg-black/40 hover:bg-white/5 border border-white/5 hover:border-cyan-500/30 rounded-xl transition-all group text-left"
