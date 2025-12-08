@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VideoPlayer } from './components/Player/VideoPlayer';
-import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem, TorrentItem, Episode, TorrentFile } from './types';
+import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem, TorrentItem, Episode } from './types';
 import { FileSelectionModal } from './components/ContentFilter/FileSelectionModal';
 import { Clock } from 'lucide-react';
 import { SearchModal } from './components/ContentFilter/SearchModal';
@@ -26,7 +26,7 @@ function App() {
   // New State for File Selection
   const [isFileSelectionOpen, setIsFileSelectionOpen] = useState(false);
   const [pendingTorrentMagnet, setPendingTorrentMagnet] = useState<string>('');
-  const [availableFiles, setAvailableFiles] = useState<TorrentFile[]>([]);
+  const [availableFiles, setAvailableFiles] = useState<{ name: string; index: number }[]>([]);
 
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
   const [searchError, setSearchError] = useState('');
@@ -59,7 +59,8 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ipcRenderer) {
-      const removeListener = window.ipcRenderer.on('torrent-progress', (_event, stats: TorrentProgress) => {
+      const removeListener = window.ipcRenderer.on('torrent-progress', (_event, ...args) => {
+        const stats = args[0] as TorrentProgress;
         setDownloadStats(stats);
       });
       return () => {
@@ -92,7 +93,8 @@ function App() {
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [videoSrc]); // Removed updateRecentlyWatched from dep to avoid loop if not memoized perfectly, videoSrc is enough trigger context
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoSrc]); // updateRecentlyWatched is stable via useCallback, excluding to avoid dep warnings
 
   useEffect(() => {
     if (videoSrc) {
@@ -218,7 +220,7 @@ function App() {
     }, 60000);
 
     try {
-      const response = await window.ipcRenderer.invoke('start-torrent', magnet, fileIndex);
+      const response = await window.ipcRenderer.invoke('start-torrent', magnet, fileIndex) as string | { status: 'select-files'; files: { name: string; index: number }[] } | undefined;
 
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       setIsLoading(false);
@@ -236,12 +238,13 @@ function App() {
       } else {
         alert('Failed to start torrent. No streaming URL received.');
       }
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error & { message?: string };
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       setIsLoading(false);
       console.error('Failed to start torrent:', error);
 
-      if (error.message && !error.message.includes('reply was never sent')) {
+      if (err.message && !err.message.includes('reply was never sent')) {
         alert('Failed to start torrent. Check console for details.');
       }
     }
@@ -284,7 +287,7 @@ function App() {
       } else {
         console.warn('IPC not available');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Search failed:', err);
       setSearchError('Failed to search. Check connection.');
     } finally {
@@ -304,7 +307,7 @@ function App() {
       if (window.ipcRenderer) {
         // Subtitles might be less accurate for series episode, but let's try show ID
         window.ipcRenderer.invoke('list-subtitles', movieToSearch.id).then(items => {
-          setSubtitleList(items);
+          setSubtitleList(items as SubtitleItem[]);
         }).catch(err => console.error('Subtitle listing failed:', err));
 
         // Use overrideQuery if provided (for episodes), otherwise default movie logic
@@ -354,7 +357,7 @@ function App() {
     if (!selectedMovie) return null;
     try {
       if (window.ipcRenderer) {
-        const path = await window.ipcRenderer.invoke('download-subtitle', item, selectedMovie.id);
+        const path = await window.ipcRenderer.invoke('download-subtitle', item, selectedMovie.id) as string | null;
         return path;
       }
       return null;

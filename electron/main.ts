@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { spawn } from 'child_process'
 import { getParentsGuide, searchMovie, getSeriesDetails } from './scraper'
-import { startTorrent, stopTorrent, cleanupCache, updateTorrentSettings, clearCache, stopActiveTorrent } from './torrent-handler'
+import { startTorrent, stopTorrent, clearCache, updateTorrentSettings, stopActiveTorrent } from './torrent-handler'
 import { searchTorrent, getTorrentList } from './torrent-search'
 import { torrentEmitter } from './event-emitter'
 import { getSettings, saveSettings } from './settings-manager'
@@ -92,14 +92,14 @@ const openInVlc = (url: string) => {
 // Quit when all windows are closed
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    cleanupCache();
+    clearCache();
     app.quit()
     win = null
   }
 })
 
 app.on('will-quit', () => {
-  cleanupCache();
+  clearCache();
 });
 
 app.on('activate', () => {

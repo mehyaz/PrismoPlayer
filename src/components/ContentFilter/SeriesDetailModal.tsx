@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Play, Calendar, Star, Loader2, ChevronRight, Film } from 'lucide-react';
+import { X, Play, Calendar, Star, Loader2, Film } from 'lucide-react';
 import { Content, Season, Episode } from '../../types';
 
 interface SeriesDetailModalProps {
@@ -23,7 +23,8 @@ export const SeriesDetailModal: React.FC<SeriesDetailModalProps> = ({ isOpen, on
             setError('');
             setActiveSeason(1);
         }
-    }, [isOpen, show]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, show]); // fetchDetails changes on every render so it's excluded
 
     const fetchDetails = async () => {
         if (!show) return;
@@ -52,9 +53,9 @@ export const SeriesDetailModal: React.FC<SeriesDetailModalProps> = ({ isOpen, on
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
             <div className="absolute inset-0" onClick={onClose} />
-            
+
             <div className="relative w-full max-w-5xl bg-gray-900/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[85vh] animate-in zoom-in-95 duration-300">
-                
+
                 {/* Close Button (Mobile) */}
                 <button onClick={onClose} className="absolute top-4 right-4 z-50 p-2 bg-black/50 rounded-full text-white md:hidden">
                     <X size={20} />
@@ -76,7 +77,7 @@ export const SeriesDetailModal: React.FC<SeriesDetailModalProps> = ({ isOpen, on
                             <p className="text-white/60 text-sm mt-1">{show.year}</p>
                         </div>
                     </div>
-                    
+
                     <div className="space-y-4">
                         <div className="flex flex-wrap gap-2">
                             <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium text-cyan-400 border border-cyan-500/20">TV Series</span>
@@ -101,11 +102,10 @@ export const SeriesDetailModal: React.FC<SeriesDetailModalProps> = ({ isOpen, on
                                 <button
                                     key={season.seasonNumber}
                                     onClick={() => setActiveSeason(season.seasonNumber)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                                        activeSeason === season.seasonNumber
-                                            ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
-                                            : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                                    }`}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeSeason === season.seasonNumber
+                                        ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
+                                        : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                                        }`}
                                 >
                                     Season {season.seasonNumber}
                                 </button>
@@ -131,8 +131,8 @@ export const SeriesDetailModal: React.FC<SeriesDetailModalProps> = ({ isOpen, on
                         ) : currentSeason ? (
                             <div className="space-y-3">
                                 {currentSeason.episodes.map(episode => (
-                                    <div 
-                                        key={episode.id} 
+                                    <div
+                                        key={episode.id}
                                         className="group flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer"
                                         onClick={() => onPlayEpisode(episode)}
                                     >

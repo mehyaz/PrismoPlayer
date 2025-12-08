@@ -69,7 +69,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const [isDownloadingSub, setIsDownloadingSub] = useState(false);
     const [isBuffering, setIsBuffering] = useState(true); // Start buffering by default
     const [error, setError] = useState<string | null>(null);
-    const [audioTracks, setAudioTracks] = useState<any[]>([]);
+    interface AudioTrack {
+        label: string;
+        language: string;
+        enabled: boolean;
+    }
+
+    interface ExtendedHTMLVideoElement extends HTMLVideoElement {
+        audioTracks?: { length: number;[index: number]: AudioTrack };
+        mozHasAudio?: boolean;
+        webkitAudioDecodedByteCount?: number;
+    }
+
+    const [audioTracks, setAudioTracks] = useState<{ id: number; label: string; language: string; enabled: boolean }[]>([]);
     const [activeAudioTrack, setActiveAudioTrack] = useState<number>(0);
 
     useSkipEngine({
@@ -195,7 +207,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             }
 
             // Detect Audio Tracks
-            const video = videoRef.current as any;
+            const video = videoRef.current as ExtendedHTMLVideoElement;
             if (video.audioTracks) {
                 const tracks = [];
                 for (let i = 0; i < video.audioTracks.length; i++) {
@@ -214,18 +226,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
             setTimeout(() => {
                 if (videoRef.current) {
-                    const video = videoRef.current as any;
-                    const hasAudio = video.mozHasAudio || video.webkitAudioDecodedByteCount > 0 || (video.audioTracks && video.audioTracks.length > 0);
+                    const video = videoRef.current as ExtendedHTMLVideoElement;
+                    const hasAudio = video.mozHasAudio || (video.webkitAudioDecodedByteCount !== undefined && video.webkitAudioDecodedByteCount > 0) || (video.audioTracks && video.audioTracks.length > 0);
                     if (!hasAudio) {
                         console.warn('No audio detected');
                     }
                 }
             }, 1000);
         }
-    }, []);
+    }, [initialTime]);
 
     const changeAudioTrack = (index: number) => {
-        const video = videoRef.current as any;
+        const video = videoRef.current as ExtendedHTMLVideoElement;
         if (video && video.audioTracks) {
             for (let i = 0; i < video.audioTracks.length; i++) {
                 video.audioTracks[i].enabled = (i === index);

@@ -36,23 +36,30 @@ export const getParentsGuide = async (imdbId: string): Promise<ParentsGuideItem[
     try {
         const url = `https://www.imdb.com/title/${imdbId}/parentalguide`;
         const { data } = await axios.get(url, AXIOS_CONFIG);
-        
+
         const jsonMatch = data.match(/<script id="__NEXT_DATA__" type="application\/json">([^<]+)<\/script>/);
         if (!jsonMatch) return [];
-        
+
         const jsonString = jsonMatch[1];
         const parsed = JSON.parse(jsonString);
-        
-        let categories = parsed?.props?.pageProps?.contentData?.categories 
+
+        const categories = parsed?.props?.pageProps?.contentData?.categories
             || parsed?.props?.pageProps?.mainColumnData?.categories
             || parsed?.props?.pageProps?.b?.categories;
 
         if (!Array.isArray(categories)) return [];
-        
-        return categories.map((cat: any) => ({
+
+        interface RawCategory {
+            title?: string;
+            id?: string;
+            severitySummary?: { text?: string };
+            items?: Array<{ text?: string }>;
+        }
+
+        return categories.map((cat: RawCategory) => ({
             category: cat.title || cat.id || '',
             status: cat.severitySummary?.text || 'Unknown',
-            items: Array.isArray(cat.items) ? cat.items.map((it: any) => it.text).filter((t: any) => !!t) : []
+            items: Array.isArray(cat.items) ? cat.items.map((it) => it.text).filter((t): t is string => !!t) : []
         }));
     } catch (error) {
         console.error('Error fetching parents guide:', error);
@@ -72,22 +79,36 @@ export const searchMovie = async (query: string) => {
 
         if (!data || !data.d) return [];
 
-        const results = data.d.map((item: any) => {
+        interface RawSearchItem {
+            id: string;
+            l: string;
+            y?: number;
+            q?: string;
+            yr?: string;
+            i?: { imageUrl?: string };
+        }
+
+        interface SearchResponse {
+            d: RawSearchItem[];
+        }
+
+        const typedData = data as SearchResponse;
+        const results = typedData.d.map((item) => {
             if (!item.id || !item.id.startsWith('tt') || !item.l) return null;
 
             let type = 'movie';
             if (item.q === 'TV series' || item.q === 'TV mini-series') type = 'series';
             else if (item.q === 'feature') type = 'movie';
-            else if (item.y && item.yr) type = 'series'; 
+            else if (item.y && item.yr) type = 'series';
 
             return {
                 id: item.id,
                 title: item.l,
                 year: item.y ? item.y.toString() : '',
-                image: item.i ? item.i.imageUrl : '',
+                image: item.i?.imageUrl || '',
                 type: type
             };
-        }).filter((item: any) => item !== null);
+        }).filter((item): item is NonNullable<typeof item> => item !== null);
 
         return results;
     } catch (error) {
@@ -102,9 +123,9 @@ export const getSeriesDetails = async (imdbId: string): Promise<ScrapedSeason[]>
         console.log(`[Scraper] Fetching series info: ${url}`);
         const { data } = await axios.get(url, AXIOS_CONFIG);
         const $ = cheerio.load(data);
-        
+
         let totalSeasons = 1;
-        
+
         // Strategy 1: Dropdown (Legacy)
         const seasonOptions = $('#bySeason option');
         if (seasonOptions.length > 0) {
@@ -112,7 +133,7 @@ export const getSeriesDetails = async (imdbId: string): Promise<ScrapedSeason[]>
                 const val = parseInt($(el).attr('value') || '0');
                 if (val > totalSeasons) totalSeasons = val;
             });
-        } 
+        }
         // Strategy 2: JSON (Modern)
         else {
             const nextData = $('#__NEXT_DATA__').html();
@@ -123,25 +144,27 @@ export const getSeriesDetails = async (imdbId: string): Promise<ScrapedSeason[]>
                     // Usually contentData.section.seasons is an array
                     const seasons = json?.props?.pageProps?.contentData?.section?.seasons;
                     if (Array.isArray(seasons)) totalSeasons = seasons.length;
-                } catch (e) {}
+                } catch (e) {
+                    console.error('[Scraper] Failed to parse JSON for seasons:', e);
+                }
             }
         }
-        
+
         // Strategy 3: Tab list (Modern HTML)
         if (totalSeasons === 1) {
-             const tabs = $('a[href*="season="]');
-             tabs.each((_, el) => {
-                 const href = $(el).attr('href') || '';
-                 const match = href.match(/season=(\d+)/);
-                 if (match) {
-                     const val = parseInt(match[1]);
-                     if (val > totalSeasons) totalSeasons = val;
-                 }
-             });
+            const tabs = $('a[href*="season="]');
+            tabs.each((_, el) => {
+                const href = $(el).attr('href') || '';
+                const match = href.match(/season=(\d+)/);
+                if (match) {
+                    const val = parseInt(match[1]);
+                    if (val > totalSeasons) totalSeasons = val;
+                }
+            });
         }
 
         console.log(`[Scraper] Detected ${totalSeasons} seasons.`);
-        
+
         if (totalSeasons > 30) totalSeasons = 30; // Safety cap
 
         const promises = [];
@@ -150,7 +173,7 @@ export const getSeriesDetails = async (imdbId: string): Promise<ScrapedSeason[]>
         }
 
         const results = await Promise.all(promises);
-        return results.filter(s => s !== null) as ScrapedSeason[];
+        return results.filter((s): s is ScrapedSeason => s !== null);
 
     } catch (error) {
         console.error('Error getting series details:', error);
@@ -163,9 +186,9 @@ const fetchSeason = async (imdbId: string, seasonNum: number): Promise<ScrapedSe
         const url = `https://www.imdb.com/title/${imdbId}/episodes?season=${seasonNum}`;
         const { data } = await axios.get(url, AXIOS_CONFIG);
         const $ = cheerio.load(data);
-        
+
         const episodes: ScrapedEpisode[] = [];
-        
+
         // --- Strategy 1: Legacy Layout (.list_item) ---
         $('.list.detail .list_item').each((_, el) => {
             const title = $(el).find('.info strong a').text().trim();
@@ -177,7 +200,7 @@ const fetchSeason = async (imdbId: string, seasonNum: number): Promise<ScrapedSe
                 const match = epText.match(/Ep(\d+)/);
                 if (match) episodeNumber = parseInt(match[1]);
             }
-            
+
             const date = $(el).find('.airdate').text().trim();
             const plot = $(el).find('.item_description').text().trim();
             const rating = $(el).find('.ipl-rating-star__rating').first().text().trim();
@@ -212,11 +235,11 @@ const fetchSeason = async (imdbId: string, seasonNum: number): Promise<ScrapedSe
                 if (epMatch) episodeNumber = parseInt(epMatch[1]);
 
                 const rating = $(el).find('span[aria-label*="rating"]').first().text().trim();
-                
+
                 // Try to find date
-                let date = '';
+                const date = '';
                 // Date is usually in a span after title
-                
+
                 // High-res image cleaning
                 const fullImg = img ? img.replace(/_V1_.*\.jpg/, '_V1_.jpg') : undefined;
 
@@ -237,7 +260,7 @@ const fetchSeason = async (imdbId: string, seasonNum: number): Promise<ScrapedSe
 
         console.log(`[Scraper] Season ${seasonNum}: Parsed ${episodes.length} episodes.`);
         return { seasonNumber: seasonNum, episodes };
-        
+
     } catch (err) {
         console.error(`Failed to fetch season ${seasonNum}`, err);
         return null;

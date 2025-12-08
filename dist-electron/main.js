@@ -12380,9 +12380,9 @@ var asynckit = asynckit$1;
 var setToStringTag2 = esSetTostringtag;
 var hasOwn$2 = hasown;
 var populate = populate$1;
-function FormData$1(options) {
-  if (!(this instanceof FormData$1)) {
-    return new FormData$1(options);
+function FormData$2(options) {
+  if (!(this instanceof FormData$2)) {
+    return new FormData$2(options);
   }
   this._overheadLength = 0;
   this._valueLength = 0;
@@ -12393,10 +12393,10 @@ function FormData$1(options) {
     this[option] = options[option];
   }
 }
-util$1.inherits(FormData$1, CombinedStream);
-FormData$1.LINE_BREAK = "\r\n";
-FormData$1.DEFAULT_CONTENT_TYPE = "application/octet-stream";
-FormData$1.prototype.append = function(field, value, options) {
+util$1.inherits(FormData$2, CombinedStream);
+FormData$2.LINE_BREAK = "\r\n";
+FormData$2.DEFAULT_CONTENT_TYPE = "application/octet-stream";
+FormData$2.prototype.append = function(field, value, options) {
   options = options || {};
   if (typeof options === "string") {
     options = { filename: options };
@@ -12416,7 +12416,7 @@ FormData$1.prototype.append = function(field, value, options) {
   append3(footer);
   this._trackLength(header, value, options);
 };
-FormData$1.prototype._trackLength = function(header, value, options) {
+FormData$2.prototype._trackLength = function(header, value, options) {
   var valueLength = 0;
   if (options.knownLength != null) {
     valueLength += Number(options.knownLength);
@@ -12426,7 +12426,7 @@ FormData$1.prototype._trackLength = function(header, value, options) {
     valueLength = Buffer.byteLength(value);
   }
   this._valueLength += valueLength;
-  this._overheadLength += Buffer.byteLength(header) + FormData$1.LINE_BREAK.length;
+  this._overheadLength += Buffer.byteLength(header) + FormData$2.LINE_BREAK.length;
   if (!value || !value.path && !(value.readable && hasOwn$2(value, "httpVersion")) && !(value instanceof Stream)) {
     return;
   }
@@ -12434,7 +12434,7 @@ FormData$1.prototype._trackLength = function(header, value, options) {
     this._valuesToMeasure.push(value);
   }
 };
-FormData$1.prototype._lengthRetriever = function(value, callback) {
+FormData$2.prototype._lengthRetriever = function(value, callback) {
   if (hasOwn$2(value, "fd")) {
     if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
       callback(null, value.end + 1 - (value.start ? value.start : 0));
@@ -12460,7 +12460,7 @@ FormData$1.prototype._lengthRetriever = function(value, callback) {
     callback("Unknown stream");
   }
 };
-FormData$1.prototype._multiPartHeader = function(field, value, options) {
+FormData$2.prototype._multiPartHeader = function(field, value, options) {
   if (typeof options.header === "string") {
     return options.header;
   }
@@ -12487,13 +12487,13 @@ FormData$1.prototype._multiPartHeader = function(field, value, options) {
         header = [header];
       }
       if (header.length) {
-        contents2 += prop2 + ": " + header.join("; ") + FormData$1.LINE_BREAK;
+        contents2 += prop2 + ": " + header.join("; ") + FormData$2.LINE_BREAK;
       }
     }
   }
-  return "--" + this.getBoundary() + FormData$1.LINE_BREAK + contents2 + FormData$1.LINE_BREAK;
+  return "--" + this.getBoundary() + FormData$2.LINE_BREAK + contents2 + FormData$2.LINE_BREAK;
 };
-FormData$1.prototype._getContentDisposition = function(value, options) {
+FormData$2.prototype._getContentDisposition = function(value, options) {
   var filename;
   if (typeof options.filepath === "string") {
     filename = path.normalize(options.filepath).replace(/\\/g, "/");
@@ -12506,7 +12506,7 @@ FormData$1.prototype._getContentDisposition = function(value, options) {
     return 'filename="' + filename + '"';
   }
 };
-FormData$1.prototype._getContentType = function(value, options) {
+FormData$2.prototype._getContentType = function(value, options) {
   var contentType = options.contentType;
   if (!contentType && value && value.name) {
     contentType = mime.lookup(value.name);
@@ -12521,13 +12521,13 @@ FormData$1.prototype._getContentType = function(value, options) {
     contentType = mime.lookup(options.filepath || options.filename);
   }
   if (!contentType && value && typeof value === "object") {
-    contentType = FormData$1.DEFAULT_CONTENT_TYPE;
+    contentType = FormData$2.DEFAULT_CONTENT_TYPE;
   }
   return contentType;
 };
-FormData$1.prototype._multiPartFooter = function() {
+FormData$2.prototype._multiPartFooter = function() {
   return (function(next2) {
-    var footer = FormData$1.LINE_BREAK;
+    var footer = FormData$2.LINE_BREAK;
     var lastPart = this._streams.length === 0;
     if (lastPart) {
       footer += this._lastBoundary();
@@ -12535,10 +12535,10 @@ FormData$1.prototype._multiPartFooter = function() {
     next2(footer);
   }).bind(this);
 };
-FormData$1.prototype._lastBoundary = function() {
-  return "--" + this.getBoundary() + "--" + FormData$1.LINE_BREAK;
+FormData$2.prototype._lastBoundary = function() {
+  return "--" + this.getBoundary() + "--" + FormData$2.LINE_BREAK;
 };
-FormData$1.prototype.getHeaders = function(userHeaders) {
+FormData$2.prototype.getHeaders = function(userHeaders) {
   var header;
   var formHeaders = {
     "content-type": "multipart/form-data; boundary=" + this.getBoundary()
@@ -12550,19 +12550,19 @@ FormData$1.prototype.getHeaders = function(userHeaders) {
   }
   return formHeaders;
 };
-FormData$1.prototype.setBoundary = function(boundary) {
+FormData$2.prototype.setBoundary = function(boundary) {
   if (typeof boundary !== "string") {
     throw new TypeError("FormData boundary must be a string");
   }
   this._boundary = boundary;
 };
-FormData$1.prototype.getBoundary = function() {
+FormData$2.prototype.getBoundary = function() {
   if (!this._boundary) {
     this._generateBoundary();
   }
   return this._boundary;
 };
-FormData$1.prototype.getBuffer = function() {
+FormData$2.prototype.getBuffer = function() {
   var dataBuffer = new Buffer.alloc(0);
   var boundary = this.getBoundary();
   for (var i = 0, len = this._streams.length; i < len; i++) {
@@ -12573,16 +12573,16 @@ FormData$1.prototype.getBuffer = function() {
         dataBuffer = Buffer.concat([dataBuffer, Buffer.from(this._streams[i])]);
       }
       if (typeof this._streams[i] !== "string" || this._streams[i].substring(2, boundary.length + 2) !== boundary) {
-        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData$1.LINE_BREAK)]);
+        dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData$2.LINE_BREAK)]);
       }
     }
   }
   return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
 };
-FormData$1.prototype._generateBoundary = function() {
+FormData$2.prototype._generateBoundary = function() {
   this._boundary = "--------------------------" + crypto.randomBytes(12).toString("hex");
 };
-FormData$1.prototype.getLengthSync = function() {
+FormData$2.prototype.getLengthSync = function() {
   var knownLength = this._overheadLength + this._valueLength;
   if (this._streams.length) {
     knownLength += this._lastBoundary().length;
@@ -12592,14 +12592,14 @@ FormData$1.prototype.getLengthSync = function() {
   }
   return knownLength;
 };
-FormData$1.prototype.hasKnownLength = function() {
+FormData$2.prototype.hasKnownLength = function() {
   var hasKnownLength = true;
   if (this._valuesToMeasure.length) {
     hasKnownLength = false;
   }
   return hasKnownLength;
 };
-FormData$1.prototype.getLength = function(cb) {
+FormData$2.prototype.getLength = function(cb) {
   var knownLength = this._overheadLength + this._valueLength;
   if (this._streams.length) {
     knownLength += this._lastBoundary().length;
@@ -12619,7 +12619,7 @@ FormData$1.prototype.getLength = function(cb) {
     cb(null, knownLength);
   });
 };
-FormData$1.prototype.submit = function(params, cb) {
+FormData$2.prototype.submit = function(params, cb) {
   var request;
   var options;
   var defaults2 = { method: "post" };
@@ -12666,19 +12666,19 @@ FormData$1.prototype.submit = function(params, cb) {
   }).bind(this));
   return request;
 };
-FormData$1.prototype._error = function(err) {
+FormData$2.prototype._error = function(err) {
   if (!this.error) {
     this.error = err;
     this.pause();
     this.emit("error", err);
   }
 };
-FormData$1.prototype.toString = function() {
+FormData$2.prototype.toString = function() {
   return "[object FormData]";
 };
-setToStringTag2(FormData$1.prototype, "FormData");
-var form_data = FormData$1;
-const FormData$2 = /* @__PURE__ */ getDefaultExportFromCjs(form_data);
+setToStringTag2(FormData$2.prototype, "FormData");
+var form_data = FormData$2;
+const FormData$1 = /* @__PURE__ */ getDefaultExportFromCjs(form_data);
 function isVisitable(thing) {
   return utils$2.isPlainObject(thing) || utils$2.isArray(thing);
 }
@@ -12702,7 +12702,7 @@ function toFormData$1(obj, formData, options) {
   if (!utils$2.isObject(obj)) {
     throw new TypeError("target must be an object");
   }
-  formData = formData || new (FormData$2 || FormData)();
+  formData = formData || new (FormData$1 || FormData)();
   options = utils$2.toFlatObject(options, {
     metaTokens: true,
     dots: false,
@@ -12938,7 +12938,7 @@ const platform$1 = {
   isNode: true,
   classes: {
     URLSearchParams,
-    FormData: FormData$2,
+    FormData: FormData$1,
     Blob: typeof Blob !== "undefined" && Blob || null
   },
   ALPHABET,
@@ -19586,7 +19586,7 @@ function parseSelector(subselects2, selector, selectorIndex) {
   finalizeSubselector();
   return selectorIndex;
 }
-var boolbase = {
+var boolbase$1 = {
   trueFunc: function trueFunc() {
     return true;
   },
@@ -19594,7 +19594,7 @@ var boolbase = {
     return false;
   }
 };
-const boolbase$1 = /* @__PURE__ */ getDefaultExportFromCjs(boolbase);
+const boolbase = /* @__PURE__ */ getDefaultExportFromCjs(boolbase$1);
 const procedure = /* @__PURE__ */ new Map([
   [SelectorType.Universal, 50],
   [SelectorType.Tag, 30],
@@ -19744,7 +19744,7 @@ const attributeRules = {
     const { adapter: adapter2 } = options;
     const { name, value } = data2;
     if (/\s/.test(value)) {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     const regex = new RegExp(`(?:^|\\s)${escapeRegex(value)}(?:$|\\s)`, shouldIgnoreCase(data2, options) ? "i" : "");
     return function element(elem) {
@@ -19761,7 +19761,7 @@ const attributeRules = {
     let { value } = data2;
     const len = value.length;
     if (len === 0) {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       value = value.toLowerCase();
@@ -19781,7 +19781,7 @@ const attributeRules = {
     let { value } = data2;
     const len = -value.length;
     if (len === 0) {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       value = value.toLowerCase();
@@ -19799,7 +19799,7 @@ const attributeRules = {
     const { adapter: adapter2 } = options;
     const { name, value } = data2;
     if (value === "") {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     if (shouldIgnoreCase(data2, options)) {
       const regex = new RegExp(escapeRegex(value), "i");
@@ -19888,13 +19888,13 @@ function compile(parsed) {
   const a = parsed[0];
   const b = parsed[1] - 1;
   if (b < 0 && a <= 0)
-    return boolbase$1.falseFunc;
+    return boolbase.falseFunc;
   if (a === -1)
     return (index2) => index2 <= b;
   if (a === 0)
     return (index2) => index2 === b;
   if (a === 1)
-    return b < 0 ? boolbase$1.trueFunc : (index2) => index2 >= b;
+    return b < 0 ? boolbase.trueFunc : (index2) => index2 >= b;
   const absA = Math.abs(a);
   const bMod = (b % absA + absA) % absA;
   return a > 1 ? (index2) => index2 >= b && index2 % absA === bMod : (index2) => index2 <= b && index2 % absA === bMod;
@@ -19923,9 +19923,9 @@ const filters = {
   // Location specific methods
   "nth-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthChild(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -19942,9 +19942,9 @@ const filters = {
   },
   "nth-last-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthLastChild(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -19961,9 +19961,9 @@ const filters = {
   },
   "nth-of-type"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthOfType(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -19981,9 +19981,9 @@ const filters = {
   },
   "nth-last-of-type"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
-    if (func === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
-    if (func === boolbase$1.trueFunc)
+    if (func === boolbase.falseFunc)
+      return boolbase.falseFunc;
+    if (func === boolbase.trueFunc)
       return getChildFunc(next2, adapter2);
     return function nthLastOfType(elem) {
       const siblings2 = adapter2.getSiblings(elem);
@@ -20024,7 +20024,7 @@ function dynamicStatePseudo(name) {
   return function dynamicPseudo(next2, _rule, { adapter: adapter2 }) {
     const func = adapter2[name];
     if (typeof func !== "function") {
-      return boolbase$1.falseFunc;
+      return boolbase.falseFunc;
     }
     return function active(elem) {
       return func(elem) && next2(elem);
@@ -20131,8 +20131,8 @@ const aliases = {
 };
 const PLACEHOLDER_ELEMENT = {};
 function ensureIsTag(next2, adapter2) {
-  if (next2 === boolbase$1.falseFunc)
-    return boolbase$1.falseFunc;
+  if (next2 === boolbase.falseFunc)
+    return boolbase.falseFunc;
   return (elem) => adapter2.isTag(elem) && next2(elem);
 }
 function getNextSiblings(elem, adapter2) {
@@ -20158,7 +20158,7 @@ function copyOptions(options) {
 }
 const is$2 = (next2, token, options, context, compileToken2) => {
   const func = compileToken2(token, copyOptions(options), context);
-  return func === boolbase$1.trueFunc ? next2 : func === boolbase$1.falseFunc ? boolbase$1.falseFunc : (elem) => func(elem) && next2(elem);
+  return func === boolbase.trueFunc ? next2 : func === boolbase.falseFunc ? boolbase.falseFunc : (elem) => func(elem) && next2(elem);
 };
 const subselects = {
   is: is$2,
@@ -20169,7 +20169,7 @@ const subselects = {
   where: is$2,
   not(next2, token, options, context, compileToken2) {
     const func = compileToken2(token, copyOptions(options), context);
-    return func === boolbase$1.falseFunc ? next2 : func === boolbase$1.trueFunc ? boolbase$1.falseFunc : (elem) => !func(elem) && next2(elem);
+    return func === boolbase.falseFunc ? next2 : func === boolbase.trueFunc ? boolbase.falseFunc : (elem) => !func(elem) && next2(elem);
   },
   has(next2, subselect, options, _context, compileToken2) {
     const { adapter: adapter2 } = options;
@@ -20180,10 +20180,10 @@ const subselects = {
       [PLACEHOLDER_ELEMENT]
     ) : void 0;
     const compiled = compileToken2(subselect, opts, context);
-    if (compiled === boolbase$1.falseFunc)
-      return boolbase$1.falseFunc;
+    if (compiled === boolbase.falseFunc)
+      return boolbase.falseFunc;
     const hasElement = ensureIsTag(compiled, adapter2);
-    if (context && compiled !== boolbase$1.trueFunc) {
+    if (context && compiled !== boolbase.trueFunc) {
       const { shouldTestNextSiblings = false } = compiled;
       return (elem) => {
         if (!next2(elem))
@@ -20409,19 +20409,19 @@ function compileToken(token, options, context) {
       }
     }
     return compileRules(rules, options, finalContext);
-  }).reduce(reduceRules, boolbase$1.falseFunc);
+  }).reduce(reduceRules, boolbase.falseFunc);
   query.shouldTestNextSiblings = shouldTestNextSiblings;
   return query;
 }
 function compileRules(rules, options, context) {
   var _a2;
-  return rules.reduce((previous, rule) => previous === boolbase$1.falseFunc ? boolbase$1.falseFunc : compileGeneralSelector(previous, rule, options, context, compileToken), (_a2 = options.rootFunc) !== null && _a2 !== void 0 ? _a2 : boolbase$1.trueFunc);
+  return rules.reduce((previous, rule) => previous === boolbase.falseFunc ? boolbase.falseFunc : compileGeneralSelector(previous, rule, options, context, compileToken), (_a2 = options.rootFunc) !== null && _a2 !== void 0 ? _a2 : boolbase.trueFunc);
 }
 function reduceRules(a, b) {
-  if (b === boolbase$1.falseFunc || a === boolbase$1.trueFunc) {
+  if (b === boolbase.falseFunc || a === boolbase.trueFunc) {
     return a;
   }
-  if (a === boolbase$1.falseFunc || b === boolbase$1.trueFunc) {
+  if (a === boolbase.falseFunc || b === boolbase.trueFunc) {
     return b;
   }
   return function combine(elem) {
@@ -20661,8 +20661,8 @@ function findFilterElements(root2, selector, options, queryForSelector, totalLim
        */
       rootFunc: (el) => result.includes(el)
     };
-  } else if (options.rootFunc && options.rootFunc !== boolbase.trueFunc) {
-    options = { ...options, rootFunc: boolbase.trueFunc };
+  } else if (options.rootFunc && options.rootFunc !== boolbase$1.trueFunc) {
+    options = { ...options, rootFunc: boolbase$1.trueFunc };
   }
   return remainingSelector.some(isFilter) ? findFilterElements(result, remainingSelector, options, false, totalLimit) : remainingHasTraversal ? (
     // Query existing elements to resolve traversal.
@@ -20685,7 +20685,7 @@ function filterElements(elements, sel, options) {
   if (els.length === 0)
     return els;
   const query = _compileToken(sel, options);
-  return query === boolbase.trueFunc ? els : els.filter(query);
+  return query === boolbase$1.trueFunc ? els : els.filter(query);
 }
 const reSiblingSelector = /^\s*[~+]/;
 function find(selectorOrHaystack) {
@@ -30952,7 +30952,7 @@ const getParentsGuide = async (imdbId) => {
     if (!jsonMatch) return [];
     const jsonString = jsonMatch[1];
     const parsed = JSON.parse(jsonString);
-    let categories = ((_c = (_b = (_a2 = parsed == null ? void 0 : parsed.props) == null ? void 0 : _a2.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.categories) || ((_f = (_e = (_d = parsed == null ? void 0 : parsed.props) == null ? void 0 : _d.pageProps) == null ? void 0 : _e.mainColumnData) == null ? void 0 : _f.categories) || ((_i = (_h = (_g = parsed == null ? void 0 : parsed.props) == null ? void 0 : _g.pageProps) == null ? void 0 : _h.b) == null ? void 0 : _i.categories);
+    const categories = ((_c = (_b = (_a2 = parsed == null ? void 0 : parsed.props) == null ? void 0 : _a2.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.categories) || ((_f = (_e = (_d = parsed == null ? void 0 : parsed.props) == null ? void 0 : _d.pageProps) == null ? void 0 : _e.mainColumnData) == null ? void 0 : _f.categories) || ((_i = (_h = (_g = parsed == null ? void 0 : parsed.props) == null ? void 0 : _g.pageProps) == null ? void 0 : _h.b) == null ? void 0 : _i.categories);
     if (!Array.isArray(categories)) return [];
     return categories.map((cat) => {
       var _a3;
@@ -30975,7 +30975,9 @@ const searchMovie = async (query) => {
     const url2 = `https://v2.sg.media-imdb.com/suggestion/${firstChar}/${encodeURIComponent(cleanQuery)}.json`;
     const { data: data2 } = await axios.get(url2, AXIOS_CONFIG$1);
     if (!data2 || !data2.d) return [];
-    const results = data2.d.map((item) => {
+    const typedData = data2;
+    const results = typedData.d.map((item) => {
+      var _a2;
       if (!item.id || !item.id.startsWith("tt") || !item.l) return null;
       let type2 = "movie";
       if (item.q === "TV series" || item.q === "TV mini-series") type2 = "series";
@@ -30985,7 +30987,7 @@ const searchMovie = async (query) => {
         id: item.id,
         title: item.l,
         year: item.y ? item.y.toString() : "",
-        image: item.i ? item.i.imageUrl : "",
+        image: ((_a2 = item.i) == null ? void 0 : _a2.imageUrl) || "",
         type: type2
       };
     }).filter((item) => item !== null);
@@ -31017,6 +31019,7 @@ const getSeriesDetails = async (imdbId) => {
           const seasons = (_d = (_c = (_b = (_a2 = json == null ? void 0 : json.props) == null ? void 0 : _a2.pageProps) == null ? void 0 : _b.contentData) == null ? void 0 : _c.section) == null ? void 0 : _d.seasons;
           if (Array.isArray(seasons)) totalSeasons = seasons.length;
         } catch (e) {
+          console.error("[Scraper] Failed to parse JSON for seasons:", e);
         }
       }
     }
@@ -31088,7 +31091,7 @@ const fetchSeason = async (imdbId, seasonNum) => {
         const epMatch = textContent2.match(/S\d+\.E(\d+)/);
         if (epMatch) episodeNumber = parseInt(epMatch[1]);
         const rating = $2(el).find('span[aria-label*="rating"]').first().text().trim();
-        let date = "";
+        const date = "";
         const fullImg = img ? img.replace(/_V1_.*\.jpg/, "_V1_.jpg") : void 0;
         if (title) {
           episodes.push({
@@ -31146,6 +31149,21 @@ const saveSettings = (settings) => {
 };
 const require$2 = createRequire(import.meta.url);
 const WebTorrent = require$2("webtorrent");
+const TRACKERS$1 = [
+  "udp://tracker.opentrackr.org:1337/announce",
+  "udp://open.demonii.com:1337/announce",
+  "udp://tracker.openbittorrent.com:80/announce",
+  "udp://tracker.coppersurfer.tk:6969/announce",
+  "udp://glotorrents.pw:6969/announce",
+  "udp://tracker.leechers-paradise.org:6969/announce",
+  "udp://p4p.arenabg.com:1337/announce",
+  "udp://tracker.internetwarriors.net:1337/announce",
+  "wss://tracker.btorrent.xyz",
+  "wss://tracker.openwebtorrent.com",
+  "udp://9.rarbg.to:2710/announce",
+  "udp://9.rarbg.me:2710/announce",
+  "http://tracker.opentrackr.org:1337/announce"
+];
 const CACHE_DIR_NAME = "PrismoPlayerCache";
 const cachePath = path$1.join(app$1.getPath("userData"), CACHE_DIR_NAME);
 if (!fs$2.existsSync(cachePath)) {
@@ -31153,262 +31171,193 @@ if (!fs$2.existsSync(cachePath)) {
 }
 const initialSettings = getSettings();
 const client = new WebTorrent({
-  uploadLimit: initialSettings.uploadLimitKB * 1024
+  uploadLimit: initialSettings.uploadLimitKB * 1024,
+  dht: true,
+  pex: true,
+  lsd: true
 });
 const torrentServerMap = /* @__PURE__ */ new Map();
 let activeMagnetLink = null;
 const updateTorrentSettings = (newSettings) => {
   if (client) {
     client.uploadLimit = newSettings.uploadLimitKB * 1024;
-    console.log(`[Torrent] Updated upload limit to ${newSettings.uploadLimitKB} KB/s`);
   }
 };
 const clearCache = async () => {
+  client.torrents.forEach((t) => t.destroy());
+  activeMagnetLink = null;
+  torrentServerMap.clear();
   try {
-    console.log("[Cache] Manual cache clear requested.");
-    client.torrents.forEach((t) => t.destroy());
-    activeMagnetLink = null;
-    try {
-      await fsPromises.rm(cachePath, { recursive: true, force: true });
-      await fsPromises.mkdir(cachePath, { recursive: true });
-    } catch (err) {
-      console.error("[Cache] Failed to remove/recreate cache dir:", err);
-    }
-    console.log("[Cache] Cache cleared successfully.");
-    return true;
+    await fsPromises.rm(cachePath, { recursive: true, force: true });
+    await fsPromises.mkdir(cachePath, { recursive: true });
   } catch (err) {
-    console.error("[Cache] Failed to clear cache:", err);
-    throw err;
+    console.error("[Cache] Failed to remove/recreate cache dir:", err);
   }
-};
-const getDirSize = async (dirPath) => {
-  let size = 0;
-  try {
-    const stats = await fsPromises.stat(dirPath).catch(() => null);
-    if (!stats) return 0;
-    if (stats.isDirectory()) {
-      const files = await fsPromises.readdir(dirPath);
-      const sizes = await Promise.all(files.map((file) => getDirSize(path$1.join(dirPath, file))));
-      size = sizes.reduce((acc, s) => acc + s, 0);
-    } else {
-      size = stats.size;
-    }
-  } catch (err) {
-    console.error(`[Cache] Error calculating size for ${dirPath}:`, err);
-  }
-  return size;
-};
-const enforceQuota = async () => {
-  const settings = getSettings();
-  const maxCacheBytes = settings.cacheLimitGB * 1024 * 1024 * 1024;
-  console.log(`[Cache] Checking quota. Limit: ${settings.cacheLimitGB} GB`);
-  let currentSize = await getDirSize(cachePath);
-  console.log(`[Cache] Current size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
-  if (currentSize <= maxCacheBytes) {
-    console.log("[Cache] Quota OK.");
-    return;
-  }
-  console.log("[Cache] Quota exceeded. cleaning up old files...");
-  try {
-    const files = await fsPromises.readdir(cachePath);
-    const items = await Promise.all(files.map(async (file) => {
-      const filePath = path$1.join(cachePath, file);
-      const stats = await fsPromises.stat(filePath);
-      return {
-        path: filePath,
-        stats
-      };
-    }));
-    items.sort((a, b) => a.stats.mtime.getTime() - b.stats.mtime.getTime());
-    for (const item of items) {
-      if (currentSize <= maxCacheBytes) break;
-      console.log(`[Cache] Deleting old item: ${item.path}`);
-      if (item.stats.isDirectory()) {
-        const dirSize = await getDirSize(item.path);
-        await fsPromises.rm(item.path, { recursive: true, force: true });
-        currentSize -= dirSize;
-      } else {
-        await fsPromises.unlink(item.path);
-        currentSize -= item.stats.size;
-      }
-    }
-    console.log(`[Cache] Cleanup complete. New size: ${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB`);
-  } catch (err) {
-    console.error("[Cache] Error during quota cleanup:", err);
-  }
-};
-const cleanupCache = () => {
-  console.log("[Cache] Application closing. Destroying client and enforcing quota...");
-  client.destroy((err) => {
-    if (err) console.error("[Cache] Error destroying client:", err);
-    else console.log("[Cache] WebTorrent client destroyed.");
-    enforceQuota().catch((e) => console.error(e));
-  });
+  return true;
 };
 const stopActiveTorrent = () => {
   if (activeMagnetLink) {
     console.log(`[Torrent] Stopping active torrent: ${activeMagnetLink}`);
-    stopTorrent(activeMagnetLink);
+    const torrent = client.get(activeMagnetLink);
+    if (torrent) {
+      const server = torrentServerMap.get(activeMagnetLink);
+      if (server) {
+        try {
+          server.close();
+        } catch (e) {
+          console.error("[Torrent] Failed to close server:", e);
+        }
+        torrentServerMap.delete(activeMagnetLink);
+      }
+      torrent.destroy();
+    }
     activeMagnetLink = null;
   }
 };
 const startTorrent = (magnetLink, fileIndex) => {
   return new Promise((resolve, reject) => {
-    console.log(`[Torrent] startTorrent called. Index: ${fileIndex}`);
+    console.log(`[Torrent] startTorrent called with fileIndex:`, fileIndex);
     if (activeMagnetLink && activeMagnetLink !== magnetLink) {
-      console.log(`[Torrent] Stopping previous active torrent...`);
-      stopTorrent(activeMagnetLink);
+      stopActiveTorrent();
     }
     activeMagnetLink = magnetLink;
-    const existingUrl = torrentServerMap.get(magnetLink);
-    if (existingUrl && fileIndex !== void 0) {
-      const match = existingUrl.match(/http:\/\/127\.0\.0\.1:(\d+)\//);
-      if (match) {
-        const newUrl = `http://127.0.0.1:${match[1]}/${fileIndex}`;
-        console.log(`[Torrent] Switching file on existing server: ${newUrl}`);
-        torrentServerMap.set(magnetLink, newUrl);
-        return resolve(newUrl);
+    const existingTorrent = client.get(magnetLink);
+    const startServer = (torrent2) => {
+      const videoFiles = torrent2.files.filter(
+        (file2) => /\.(mp4|mkv|avi|webm|m4v)$/i.test(file2.name)
+      );
+      videoFiles.sort((a, b) => b.length - a.length);
+      if (videoFiles.length === 0) {
+        return reject(new Error("No video files found in torrent."));
       }
-    } else if (existingUrl && fileIndex === void 0) {
-      console.log(`[Torrent] Reusing existing server URL: ${existingUrl}`);
-      return resolve(existingUrl);
-    }
-    const createServerFromTorrent = (torrent) => {
-      const videoFiles = torrent.files.map((file, idx) => ({
-        name: file.name,
-        index: idx,
-        size: file.length,
-        isVideo: /\.(mp4|mkv|avi|webm|m4v)$/i.test(file.name)
-      })).filter((f) => f.isVideo);
-      videoFiles.sort((a, b) => b.size - a.size);
-      if (videoFiles.length > 1 && fileIndex === void 0) {
-        console.log(`[Torrent] Multiple video files found (${videoFiles.length}). Requesting selection.`);
-        return resolve({
-          status: "select-files",
-          files: videoFiles
-        });
-      }
-      let targetIndex = -1;
       if (fileIndex !== void 0) {
-        targetIndex = fileIndex;
-      } else if (videoFiles.length > 0) {
-        targetIndex = videoFiles[0].index;
-      } else {
-        targetIndex = torrent.files.reduce((bestIdx, file, idx) => {
-          return torrent.files[idx].length > torrent.files[bestIdx].length ? idx : bestIdx;
-        }, 0);
+        const selectedFile = torrent2.files[fileIndex];
+        if (!selectedFile) {
+          return reject(new Error(`File index ${fileIndex} not found`));
+        }
+        console.log(`[Torrent] Using specified file index ${fileIndex}: ${selectedFile.name}`);
+        selectedFile.select();
+        try {
+          const server = torrent2.createServer();
+          server.listen(0, () => {
+            const port = server.address().port;
+            const url2 = `http://localhost:${port}/${fileIndex}`;
+            console.log(`[Torrent] Server ready at: ${url2}`);
+            torrentServerMap.set(magnetLink, server);
+            resolve(url2);
+          });
+          server.on("error", (err) => {
+            console.error("[Torrent] Server error:", err);
+            reject(err);
+          });
+        } catch (err) {
+          console.error("[Torrent] Failed to create server:", err);
+          reject(err);
+        }
+        return;
       }
+      if (videoFiles.length > 1) {
+        console.log(`[Torrent] Multiple video files found (${videoFiles.length}), requesting user selection`);
+        const fileList = videoFiles.map((file2) => ({
+          name: file2.name,
+          index: torrent2.files.indexOf(file2)
+        }));
+        resolve({ status: "select-files", files: fileList });
+        return;
+      }
+      const file = videoFiles[0];
+      console.log(`[Torrent] Auto-selected single file: ${file.name}`);
+      file.select();
       try {
-        const server = torrent.createServer();
-        server.listen(0, "127.0.0.1", () => {
-          const address = server.address();
-          if (!address || typeof address === "string") {
-            return reject(new Error("Server address is not available."));
-          }
-          const port = address.port;
-          const finalUrl = `http://127.0.0.1:${port}/${targetIndex}`;
-          console.log(`[Torrent] Server created at ${finalUrl}`);
-          torrentServerMap.set(magnetLink, finalUrl);
-          resolve(finalUrl);
+        const server = torrent2.createServer();
+        server.listen(0, () => {
+          const port = server.address().port;
+          const url2 = `http://localhost:${port}/${torrent2.files.indexOf(file)}`;
+          console.log(`[Torrent] Server ready at: ${url2}`);
+          torrentServerMap.set(magnetLink, server);
+          resolve(url2);
         });
         server.on("error", (err) => {
           console.error("[Torrent] Server error:", err);
           reject(err);
         });
       } catch (err) {
-        console.error("[Torrent] Error creating server:", err);
+        console.error("[Torrent] Failed to create server:", err);
         reject(err);
       }
     };
-    const existingTorrent = client.get(magnetLink);
     if (existingTorrent) {
-      console.log(`[Torrent] Found existing torrent in client (client.get)`);
       if (existingTorrent.ready) {
-        createServerFromTorrent(existingTorrent);
+        startServer(existingTorrent);
       } else {
-        existingTorrent.once("ready", () => createServerFromTorrent(existingTorrent));
+        existingTorrent.once("ready", () => startServer(existingTorrent));
       }
+      setupProgress(existingTorrent);
       return;
     }
-    try {
-      const torrentInstance = client.add(magnetLink, {
-        path: cachePath
-      });
-      torrentInstance.on("error", (error) => {
-        if (error.message && error.message.includes("duplicate torrent")) {
-          console.log("[Torrent] Caught duplicate error, recovering...");
-          const existing = client.get(magnetLink);
-          if (existing) {
-            createServerFromTorrent(existing);
-            return;
-          }
-        }
-        console.error("[Torrent] Torrent Error:", error);
-        reject(error);
-      });
-      torrentInstance.once("ready", () => {
-        console.log(`[Torrent] Metadata ready. Name: ${torrentInstance.name}`);
-        createServerFromTorrent(torrentInstance);
-        let lastUpdate = 0;
-        const updateInterval = setInterval(() => {
-          if (torrentInstance.destroyed) {
-            clearInterval(updateInterval);
-            return;
-          }
-          const now = Date.now();
-          if (now - lastUpdate > 1e3) {
-            const progress = {
-              downloadSpeed: torrentInstance.downloadSpeed,
-              progress: torrentInstance.progress,
-              numPeers: torrentInstance.numPeers,
-              downloaded: torrentInstance.downloaded,
-              length: torrentInstance.length
-            };
-            torrentEmitter.emit("torrent-progress", progress);
-            lastUpdate = now;
-          }
-        }, 1e3);
-      });
-    } catch (err) {
-      if (err.message && err.message.includes("duplicate torrent")) {
-        console.log("[Torrent] Caught synchronous duplicate error, recovering...");
-        const existing = client.get(magnetLink);
-        if (existing) {
-          if (existing.ready) createServerFromTorrent(existing);
-          else existing.once("ready", () => createServerFromTorrent(existing));
-          return;
-        }
-      }
-      console.error("[Torrent] Failed to add torrent:", err);
+    const torrent = client.add(magnetLink, {
+      path: cachePath,
+      announce: TRACKERS$1
+    });
+    torrent.on("error", (err) => {
+      console.error("[Torrent] Torrent error:", err);
       reject(err);
-    }
+    });
+    torrent.on("metadata", () => {
+      console.log("[Torrent] Metadata downloaded.");
+      console.log(`[Torrent] Total files: ${torrent.files.length}`);
+      torrent.files.forEach((f, i) => {
+        console.log(`[Torrent]   File ${i}: ${f.name} (${(f.length / 1024 / 1024).toFixed(2)} MB)`);
+      });
+    });
+    torrent.once("ready", () => {
+      console.log("[Torrent] Torrent ready. Starting server...");
+      startServer(torrent);
+      setupProgress(torrent);
+    });
   });
 };
-const stopTorrent = (magnetLink) => {
-  const torrent = client.get(magnetLink);
-  if (torrent) {
-    try {
-      torrent.destroy();
-    } catch (e) {
-      console.error("Error destroying torrent", e);
+function setupProgress(torrent) {
+  let lastUpdate = 0;
+  const interval = setInterval(() => {
+    if (torrent.destroyed) {
+      clearInterval(interval);
+      return;
     }
-    torrentServerMap.delete(magnetLink);
-    console.log(`[Torrent] Stopped client activity for ${magnetLink}`);
-  }
-};
+    const now = Date.now();
+    if (now - lastUpdate > 1e3) {
+      const progress = {
+        downloadSpeed: torrent.downloadSpeed,
+        progress: torrent.progress,
+        numPeers: torrent.numPeers,
+        downloaded: torrent.downloaded,
+        length: torrent.length
+      };
+      torrentEmitter.emit("torrent-progress", progress);
+      lastUpdate = now;
+    }
+  }, 1e3);
+}
+const stopTorrent = () => stopActiveTorrent();
 const TRACKERS = [
+  "udp://tracker.opentrackr.org:1337/announce",
+  "udp://open.demonii.com:1337/announce",
+  "udp://tracker.openbittorrent.com:80/announce",
   "udp://tracker.coppersurfer.tk:6969/announce",
-  "udp://tracker.openbittorrent.com:80",
-  "udp://tracker.opentrackr.org:1337",
-  "udp://tracker.leechers-paradise.org:6969",
-  "udp://tracker.dler.org:6969/announce",
-  "udp://opentracker.i2p.rocks:6969/announce",
-  "udp://47.ip-51-68-199.eu:6969/announce"
+  "udp://glotorrents.pw:6969/announce",
+  "udp://tracker.leechers-paradise.org:6969/announce",
+  "udp://p4p.arenabg.com:1337/announce",
+  "udp://tracker.internetwarriors.net:1337/announce",
+  "wss://tracker.btorrent.xyz",
+  "wss://tracker.openwebtorrent.com",
+  "udp://9.rarbg.to:2710/announce",
+  "udp://9.rarbg.me:2710/announce",
+  "http://tracker.opentrackr.org:1337/announce"
 ];
 const TRACKER_STRING = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
 const calculateScore = (torrent, source) => {
-  const seeders = parseInt(torrent.seeders || "0");
-  const leechers = parseInt(torrent.leechers || "0");
+  const seeders = parseInt(String(torrent.seeders || "0"));
+  const leechers = parseInt(String(torrent.leechers || "0"));
   let score = seeders + leechers * 0.1;
   const name = torrent.name.toLowerCase();
   const src2 = source || torrent.source || "";
@@ -31446,10 +31395,10 @@ const searchAPIBay = async (query) => {
       id: t.id,
       name: t.name,
       info_hash: t.info_hash,
-      leechers: t.leechers,
-      seeders: t.seeders,
-      num_files: "1",
-      size: t.size,
+      leechers: String(t.leechers),
+      seeders: String(t.seeders),
+      num_files: String(t.num_files),
+      size: String(t.size),
       username: "APIBay",
       added: t.added,
       status: t.status,
@@ -31500,7 +31449,8 @@ const searchYTS = async (query) => {
     });
     return results.filter((t) => !isNSFW(t));
   } catch (error) {
-    console.error(`[Torrent] YTS Error: ${error.message}`);
+    const err = error;
+    console.error(`[Torrent] YTS Error: ${err.message}`);
     return [];
   }
 };
@@ -31547,7 +31497,6 @@ const searchTorrentsCSV = async (query) => {
         leechers: ((_a2 = t.leechers) == null ? void 0 : _a2.toString()) || "0",
         seeders: ((_b = t.seeders) == null ? void 0 : _b.toString()) || "0",
         num_files: "1",
-        // API doesn't always provide this
         size: ((_c = t.size_bytes) == null ? void 0 : _c.toString()) || "0",
         username: "TorrentsCSV",
         added: (/* @__PURE__ */ new Date()).toISOString(),
@@ -31555,7 +31504,7 @@ const searchTorrentsCSV = async (query) => {
         category: "Mixed",
         imdb: "",
         magnet: `magnet:?xt=urn:btih:${t.infohash}&dn=${encodeURIComponent(t.name)}${TRACKER_STRING}`,
-        score: calculateScore({ name: t.name, seeders: t.seeders, leechers: t.leechers }, "TorrentsCSV"),
+        score: calculateScore({ name: t.name, seeders: t.seeders || 0, leechers: t.leechers || 0 }, "TorrentsCSV"),
         source: "TorrentsCSV"
       };
     }).filter((t) => !isNSFW(t));
@@ -31582,7 +31531,6 @@ const searchBitSearch = async (query) => {
       if (results.length >= 20) return;
       const title = $2(el).find("h5.title a").text().trim();
       const magnet = $2(el).find('a[href^="magnet:"]').attr("href");
-      const stats = $2(el).find(".stats div");
       if (magnet && title) {
         const size = $2(el).find(".stats div:nth-child(2)").text().trim();
         const seeds = $2(el).find(".stats div:nth-child(3)").text().trim().replace(/,/g, "");
@@ -124941,8 +124889,8 @@ function runUniversalDetector(buffer2, options) {
   u.close();
   return u;
 }
-var jschardet = src;
-const jschardet$1 = /* @__PURE__ */ getDefaultExportFromCjs(jschardet);
+var jschardet$1 = src;
+const jschardet = /* @__PURE__ */ getDefaultExportFromCjs(jschardet$1);
 const SUBS_CACHE_DIR = require$$1$2.join(app$1.getPath("userData"), "PrismoPlayerSubs");
 if (!fs$1.existsSync(SUBS_CACHE_DIR)) {
   fs$1.mkdirSync(SUBS_CACHE_DIR, { recursive: true });
@@ -125024,7 +124972,8 @@ const listOpenSubtitles = async (imdbId) => {
       source: "OpenSubtitles"
     }));
   } catch (error) {
-    console.error("[OpenSubtitles] Error:", ((_a2 = error.response) == null ? void 0 : _a2.data) || error.message);
+    const err = error;
+    console.error("[OpenSubtitles] Error:", ((_a2 = err.response) == null ? void 0 : _a2.data) || err.message);
     return [];
   }
 };
@@ -125083,7 +125032,7 @@ const downloadSubtitle = async (item, imdbId) => {
         return processZipBuffer(fileData, item.lang, imdbId, item.source);
       } else {
         const buffer2 = Buffer.from(fileData);
-        const detected = jschardet$1.detect(buffer2);
+        const detected = jschardet.detect(buffer2);
         const encoding = detected.encoding || "utf-8";
         const srtData = iconv.decode(buffer2, encoding);
         let vttData = srtData;
@@ -125109,7 +125058,7 @@ const processZipBuffer = (buffer2, lang, imdbId, source) => {
     const srtEntry = zipEntries.find((entry) => entry.entryName.endsWith(".srt"));
     if (!srtEntry) return null;
     const srtBuffer = srtEntry.getData();
-    const detected = jschardet$1.detect(srtBuffer);
+    const detected = jschardet.detect(srtBuffer);
     let encoding = detected.encoding || "utf-8";
     if (lang === "tr" && (encoding === "windows-1252" || encoding === "ISO-8859-1")) {
       encoding = "windows-1254";
@@ -125222,13 +125171,13 @@ const openInVlc = (url2) => {
 };
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    cleanupCache();
+    clearCache();
     app.quit();
     win = null;
   }
 });
 app.on("will-quit", () => {
-  cleanupCache();
+  clearCache();
 });
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
@@ -125266,7 +125215,7 @@ app.whenReady().then(() => {
     return await startTorrent(magnetLink, fileIndex);
   });
   ipcMain.handle("stop-torrent", async (_, magnetLink) => {
-    return stopTorrent(magnetLink);
+    return stopTorrent();
   });
   ipcMain.handle("stop-active-torrent", async () => {
     return stopActiveTorrent();

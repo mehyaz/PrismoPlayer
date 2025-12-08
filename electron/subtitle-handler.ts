@@ -113,17 +113,27 @@ const listOpenSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => {
 
         if (!data || !data.data) return [];
 
-        return data.data.map((item: any) => ({
+        interface OpenSubtitlesItem {
+            attributes: {
+                files: Array<{ file_id: number }>;
+                language: string;
+                release: string;
+                ratings: number;
+            };
+        }
+
+        return data.data.map((item: OpenSubtitlesItem) => ({
             id: item.attributes.files[0].file_id.toString(), // Store file_id
             lang: item.attributes.language === 'tr' ? 'tr' : 'en',
             name: `${item.attributes.language === 'tr' ? '🇹🇷' : '🇺🇸'} ${item.attributes.release} (★${item.attributes.ratings}) [OS]`,
             url: '', // Not used for direct download, we use ID
             rating: item.attributes.ratings,
-            source: 'OpenSubtitles'
+            source: 'OpenSubtitles' as const
         }));
 
-    } catch (error: any) {
-        console.error('[OpenSubtitles] Error:', error.response?.data || error.message);
+    } catch (error) {
+        const err = error as Error & { response?: { data: unknown } };
+        console.error('[OpenSubtitles] Error:', err.response?.data || err.message);
         return [];
     }
 };

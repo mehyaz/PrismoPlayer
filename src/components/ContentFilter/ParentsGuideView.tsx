@@ -30,7 +30,8 @@ export const ParentsGuideView: React.FC<ParentsGuideViewProps> = ({
             setGuide([]);
             setError(null);
         }
-    }, [isOpen, imdbId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, imdbId]); // fetchGuide changes on every render, defined inline in effect
 
     const decodeHtml = (html: string) => {
         const txt = document.createElement('textarea');
@@ -43,7 +44,7 @@ export const ParentsGuideView: React.FC<ParentsGuideViewProps> = ({
         setError(null);
         try {
             const data = await window.ipcRenderer.invoke('get-parents-guide', imdbId);
-            
+
             if (!Array.isArray(data)) {
                 throw new Error('Invalid data format received');
             }
@@ -122,7 +123,7 @@ export const ParentsGuideView: React.FC<ParentsGuideViewProps> = ({
                                 <AlertTriangle size={40} />
                             </div>
                             <p className="text-lg font-medium">{error}</p>
-                            <button 
+                            <button
                                 onClick={fetchGuide}
                                 className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors border border-white/5 hover:border-white/20"
                             >
@@ -168,23 +169,24 @@ export const ParentsGuideView: React.FC<ParentsGuideViewProps> = ({
                                                 {item.items.map((desc, idx) => {
                                                     const decodedDesc = decodeHtml(desc);
                                                     return (
-                                                    <li key={idx} className="flex items-start gap-4 text-white/70 text-sm group/item p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                                        <AlertTriangle size={18} className="mt-0.5 text-white/20 flex-shrink-0 group-hover/item:text-orange-400/80 transition-colors" />
-                                                        <span className="flex-1 leading-relaxed font-light tracking-wide">{decodedDesc}</span>
-                                                        <button
-                                                            onClick={() => {
-                                                                onOpenSkipCreator(
-                                                                    `${decodeHtml(item.category)}: ${decodedDesc.substring(0, 50)}...`,
-                                                                    item.status === 'Severe' ? 'high' : item.status === 'Moderate' ? 'medium' : 'low'
-                                                                );
-                                                            }}
-                                                            className="opacity-0 group-hover/item:opacity-100 flex items-center gap-2 bg-cyan-500/10 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20 px-3 py-1.5 rounded-md text-xs font-medium transition-all border border-cyan-500/20"
-                                                        >
-                                                            <Plus size={14} />
-                                                            Add Skip
-                                                        </button>
-                                                    </li>
-                                                )})}
+                                                        <li key={idx} className="flex items-start gap-4 text-white/70 text-sm group/item p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                                            <AlertTriangle size={18} className="mt-0.5 text-white/20 flex-shrink-0 group-hover/item:text-orange-400/80 transition-colors" />
+                                                            <span className="flex-1 leading-relaxed font-light tracking-wide">{decodedDesc}</span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    onOpenSkipCreator(
+                                                                        `${decodeHtml(item.category)}: ${decodedDesc.substring(0, 50)}...`,
+                                                                        item.status === 'Severe' ? 'high' : item.status === 'Moderate' ? 'medium' : 'low'
+                                                                    );
+                                                                }}
+                                                                className="opacity-0 group-hover/item:opacity-100 flex items-center gap-2 bg-cyan-500/10 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20 px-3 py-1.5 rounded-md text-xs font-medium transition-all border border-cyan-500/20"
+                                                            >
+                                                                <Plus size={14} />
+                                                                Add Skip
+                                                            </button>
+                                                        </li>
+                                                    )
+                                                })}
                                             </ul>
                                         </div>
                                     )}

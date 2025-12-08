@@ -58,7 +58,7 @@ export interface SubtitleItem {
     name: string;
     url: string;
     rating: number;
-    source: 'YIFY' | 'TA' | 'OpenSubtitles';
+    source: 'YIFY' | 'TA';
 }
 
 export interface SubtitleTrack {
@@ -70,18 +70,17 @@ export interface SubtitleTrack {
 }
 
 export interface TorrentProgress {
-    downloadSpeed: number;
-    progress: number;
-    numPeers: number;
-    downloaded: number;
-    length: number;
+  downloadSpeed: number;
+  progress: number;
+  numPeers: number;
+  downloaded: number;
+  length: number;
 }
 
 export interface AppSettings {
     cacheLimitGB: number;
     uploadLimitKB: number;
     downloadsPath: string;
-    openSubtitlesApiKey?: string;
 }
 
 export interface RecentlyWatchedItem {
@@ -90,25 +89,19 @@ export interface RecentlyWatchedItem {
     progress: number;
     duration: number;
     title?: string;
-    // Add support for series tracking
     imdbId?: string;
     season?: number;
     episode?: number;
 }
 
-export interface TorrentFile {
-    name: string;
-    index: number;
-    size: number;
+export interface ParentsGuideItem {
+    category: string;
+    status: string;
+    items: string[];
 }
 
-export interface LibraryItem {
-    id: string;
-    path: string;
-    name: string;
-    size: number;
-    birthtime: number; // Created date
-    duration?: number;
-    thumbnail?: string;
-    format: string; // mp4, mkv, etc.
+export interface ParentsGuideItem {
+    category: string;
+    status: string;
+    items: string[];
 }
