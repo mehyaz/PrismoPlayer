@@ -65,7 +65,7 @@ export const FileSelectionModal: React.FC<FileSelectionModalProps> = ({ isOpen, 
                                     </h3>
                                     <div className="flex items-center gap-3 mt-1.5">
                                         <span className="text-xs text-white/40 font-mono bg-white/5 px-2 py-0.5 rounded">
-                                            {(file.size / 1024 / 1024).toFixed(1)} MB
+                                            {((file.size || 0) / 1024 / 1024).toFixed(1)} MB
                                         </span>
                                         {idx === 0 && (
                                             <span className="text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded uppercase tracking-wider">

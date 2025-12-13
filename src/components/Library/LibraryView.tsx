@@ -53,7 +53,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onPlay }) => {
 
     const handleAddFolder = async () => {
         if (window.ipcRenderer) {
-            const paths = await window.ipcRenderer.invoke('library:open-folder');
+            const paths = await window.ipcRenderer.invoke('library:open-folder') as string[];
             if (paths && paths.length > 0) {
                 const newFolders = [...new Set([...folders, ...paths])];
                 setFolders(newFolders);

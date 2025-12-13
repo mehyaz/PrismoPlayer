@@ -68,16 +68,26 @@ export const getParentsGuide = async (imdbId: string): Promise<ParentsGuideItem[
 };
 
 export const searchMovie = async (query: string) => {
+    console.log('[Scraper] searchMovie called with query:', query);
     try {
         const cleanQuery = query.toLowerCase().trim();
-        if (!cleanQuery) return [];
+        console.log('[Scraper] Cleaned query:', cleanQuery);
+        if (!cleanQuery) {
+            console.log('[Scraper] Empty query, returning empty array');
+            return [];
+        }
 
         const firstChar = cleanQuery.charAt(0);
         const url = `https://v2.sg.media-imdb.com/suggestion/${firstChar}/${encodeURIComponent(cleanQuery)}.json`;
+        console.log('[Scraper] Fetching from URL:', url);
 
         const { data } = await axios.get(url, AXIOS_CONFIG);
+        console.log('[Scraper] Received data:', data ? 'Yes' : 'No', 'has d property:', !!data?.d);
 
-        if (!data || !data.d) return [];
+        if (!data || !data.d) {
+            console.log('[Scraper] No data.d, returning empty array');
+            return [];
+        }
 
         interface RawSearchItem {
             id: string;
@@ -93,6 +103,8 @@ export const searchMovie = async (query: string) => {
         }
 
         const typedData = data as SearchResponse;
+        console.log('[Scraper] Number of raw results:', typedData.d.length);
+
         const results = typedData.d.map((item) => {
             if (!item.id || !item.id.startsWith('tt') || !item.l) return null;
 
@@ -110,9 +122,10 @@ export const searchMovie = async (query: string) => {
             };
         }).filter((item): item is NonNullable<typeof item> => item !== null);
 
+        console.log('[Scraper] Filtered results count:', results.length);
         return results;
     } catch (error) {
-        console.error('Error searching movie:', error);
+        console.error('[Scraper] Error searching movie:', error);
         return [];
     }
 };

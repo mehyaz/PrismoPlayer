@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { app } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -7,8 +6,9 @@ import { TorrentProgress } from '../src/types';
 import { torrentEmitter } from './event-emitter';
 import { getSettings, AppSettings } from './settings-manager';
 
-const require = createRequire(import.meta.url);
-const WebTorrent = require('webtorrent');
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import WebTorrent = require('webtorrent');
 
 const TRACKERS = [
     'udp://tracker.opentrackr.org:1337/announce',
@@ -27,19 +27,35 @@ const TRACKERS = [
 ];
 
 const CACHE_DIR_NAME = 'PrismoPlayerCache';
-const cachePath = path.join(app.getPath('userData'), CACHE_DIR_NAME);
 
-if (!fs.existsSync(cachePath)) {
-    fs.mkdirSync(cachePath, { recursive: true });
-}
+// Lazy initialization
+let _cachePath: string | null = null;
+const getCachePath = (): string => {
+    if (!_cachePath) {
+        _cachePath = path.join(app.getPath('userData'), CACHE_DIR_NAME);
+        if (!fs.existsSync(_cachePath)) {
+            fs.mkdirSync(_cachePath, { recursive: true });
+        }
+    }
+    return _cachePath;
+};
 
-const initialSettings = getSettings();
-const client = new WebTorrent({
-    uploadLimit: initialSettings.uploadLimitKB * 1024,
-    dht: true,
-    pex: true,
-    lsd: true
-});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _client: any = null;
+const getClient = () => {
+    if (!_client) {
+        const initialSettings = getSettings();
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        _client = new WebTorrent({
+            uploadLimit: initialSettings.uploadLimitKB * 1024,
+            dht: true,
+            pex: true,
+            lsd: true
+        });
+    }
+    return _client;
+};
 
 interface TorrentServer {
     listen: (port: number, callback: () => void) => void;
@@ -73,6 +89,7 @@ const torrentServerMap = new Map<string, TorrentServer>(); // Store server insta
 let activeMagnetLink: string | null = null;
 
 export const updateTorrentSettings = (newSettings: AppSettings) => {
+    const client = getClient();
     if (client) {
         client.uploadLimit = newSettings.uploadLimitKB * 1024;
     }
@@ -82,10 +99,12 @@ export const clearCache = async () => {
     interface MiniTorrent {
         destroy: () => void;
     }
+    const client = getClient();
     (client.torrents as MiniTorrent[]).forEach((t) => t.destroy());
     activeMagnetLink = null;
     torrentServerMap.clear();
 
+    const cachePath = getCachePath();
     try {
         await fsPromises.rm(cachePath, { recursive: true, force: true });
         await fsPromises.mkdir(cachePath, { recursive: true });
@@ -98,6 +117,7 @@ export const clearCache = async () => {
 export const stopActiveTorrent = () => {
     if (activeMagnetLink) {
         console.log(`[Torrent] Stopping active torrent: ${activeMagnetLink}`);
+        const client = getClient();
         const torrent = client.get(activeMagnetLink);
         if (torrent) {
             // Close server if exists
@@ -125,6 +145,7 @@ export const startTorrent = (magnetLink: string, fileIndex?: number): Promise<st
         }
         activeMagnetLink = magnetLink;
 
+        const client = getClient();
         const existingTorrent = client.get(magnetLink);
 
         // Helper to start server
@@ -224,6 +245,7 @@ export const startTorrent = (magnetLink: string, fileIndex?: number): Promise<st
         }
 
         // Add new torrent
+        const cachePath = getCachePath();
         const torrent = client.add(magnetLink, {
             path: cachePath,
             announce: TRACKERS
@@ -273,4 +295,5 @@ function setupProgress(torrent: WebTorrentInstance) {
 }
 
 // Legacy export - Keep for backwards compatibility
-export const stopTorrent = (/* _magnet: string */) => stopActiveTorrent();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const stopTorrent = (_magnetLink?: string) => stopActiveTorrent();

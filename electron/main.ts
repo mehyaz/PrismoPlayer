@@ -1,8 +1,6 @@
-import electron from 'electron'
-const { app, BrowserWindow, ipcMain } = electron
-import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
+import { dialog } from 'electron'
 import { spawn } from 'child_process'
 import { getParentsGuide, searchMovie, getSeriesDetails } from './scraper'
 import { startTorrent, stopTorrent, clearCache, updateTorrentSettings, stopActiveTorrent } from './torrent-handler'
@@ -11,11 +9,26 @@ import { torrentEmitter } from './event-emitter'
 import { getSettings, saveSettings } from './settings-manager'
 import { listSubtitles, downloadSubtitle } from './subtitle-handler'
 import { scanFolder } from './library-scanner'
-
-const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+import * as fs from 'fs';
+import {
+  getProfiles,
+  saveProfiles,
+  getActiveProfile,
+  setActiveProfile,
+  setParentalPin,
+  verifyParentalPin,
+  isPinSet
+} from './family-profiles'
+import {
+  getCustomBlockedWords,
+  addBlockedWord,
+  removeBlockedWord
+} from './safety-manager'
+import { getSafetyManager } from './safety-manager'
+import { getTMDBCertification } from './tmdb-helper';
 
 // The built directory structure
+// In CJS build, __dirname is automatically available and points to dist-electron/
 process.env.APP_ROOT = path.join(__dirname, '..')
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
@@ -25,7 +38,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
-let win: electron.BrowserWindow | null
+let win: BrowserWindow | null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -36,7 +49,7 @@ function createWindow() {
     backgroundColor: '#000000',
     icon: path.join(process.env.VITE_PUBLIC, 'prismo-logo.png'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false, // Allow file:// protocol access
@@ -110,7 +123,7 @@ app.on('activate', () => {
 
 app.whenReady().then(() => {
   ipcMain.handle('dialog:openFile', async () => {
-    const { dialog } = require('electron');
+    // dialog imported at top
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
@@ -194,7 +207,7 @@ app.whenReady().then(() => {
 
   // --- Library IPC ---
   ipcMain.handle('library:open-folder', async () => {
-    const { dialog } = require('electron');
+    // dialog imported at top
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'multiSelections']
     });
@@ -207,6 +220,80 @@ app.whenReady().then(() => {
 
   ipcMain.handle('library:scan-folder', async (_, folderPath) => {
     return await scanFolder(folderPath);
+  });
+
+  // --- Family Safety IPC ---
+  ipcMain.handle('family:get-profiles', async () => {
+    return getProfiles();
+  });
+
+  ipcMain.handle('family:get-active-profile', async () => {
+    return getActiveProfile();
+  });
+
+  ipcMain.handle('family:set-active-profile', async (_, profileId: string) => {
+    return setActiveProfile(profileId);
+  });
+
+  ipcMain.handle('family:save-profiles', async (_, data: unknown) => {
+    return saveProfiles(data as Partial<import('./family-profiles').ProfilesData>);
+  });
+
+  ipcMain.handle('family:set-pin', async (_, pin: string) => {
+    return setParentalPin(pin);
+  });
+
+  ipcMain.handle('family:verify-pin', async (_, pin: string) => {
+    return verifyParentalPin(pin);
+  });
+
+  ipcMain.handle('family:is-pin-set', async () => {
+    return isPinSet();
+  });
+
+  // --- Smart Mute IPC ---  
+  ipcMain.handle('safety:get-custom-words', async () => {
+    return getCustomBlockedWords();
+  });
+
+  ipcMain.handle('safety:add-custom-word', async (_, word: string) => {
+    return addBlockedWord(word);
+  });
+
+  ipcMain.handle('safety:remove-custom-word', async (_, word: string) => {
+    return removeBlockedWord(word);
+  });
+
+  // Read file content (for subtitle analysis)
+  ipcMain.handle('read-file', async (_, filePath: string) => {
+    try {
+      return fs.readFileSync(filePath, 'utf-8');
+    } catch (error) {
+      console.error('[IPC] Failed to read file:', error);
+      throw error;
+    }
+  });
+
+  // Analyze subtitle content for profanity
+  ipcMain.handle('safety:analyze-content', async (_, content: string) => {
+    try {
+      const safetyManager = getSafetyManager();
+      const ranges = safetyManager.analyzeSubtitles(content);
+      return ranges;
+    } catch (error) {
+      console.error('[IPC] Safety analysis failed:', error);
+      return [];
+    }
+  });
+
+  // Get TMDB certification for movie
+  ipcMain.handle('tmdb:get-certification', async (_, tmdbId: string) => {
+    try {
+      return await getTMDBCertification(tmdbId);
+    } catch (error) {
+      console.error('[IPC] TMDB certification fetch failed:', error);
+      return null;
+    }
   });
 
   createWindow();

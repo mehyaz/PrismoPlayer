@@ -22,7 +22,9 @@ import {
     RefreshCw,
     Gauge,
     PictureInPicture2,
-    Music
+    Music,
+    Search,
+    ChevronRight,
 } from 'lucide-react';
 
 const formatTime = (time: number) => {
@@ -43,12 +45,13 @@ interface VideoPlayerProps {
     onOpenVLC?: () => void; // New
     availableSubtitles: SubtitleItem[];
     onDownloadSubtitle: (item: SubtitleItem) => Promise<string | null>;
+    onSearchSubtitles?: () => void; // Trigger subtitle search
     initialTime?: number;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
-    src, skipSegments = [], onTimeUpdate, onBack, availableSubtitles, onDownloadSubtitle,
-    onChangeSource, onCheckContent, onOpenVLC, initialTime = 0
+    src, skipSegments = [], onTimeUpdate, onBack, availableSubtitles, onDownloadSubtitle, onSearchSubtitles,
+    initialTime = 0, onCheckContent, onChangeSource, onOpenVLC
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -66,6 +69,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [settingsTab, setSettingsTab] = useState<'settings' | 'subtitles'>('settings');
     const [isDownloadingSub, setIsDownloadingSub] = useState(false);
     const [isBuffering, setIsBuffering] = useState(true); // Start buffering by default
     const [error, setError] = useState<string | null>(null);
@@ -83,6 +87,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     const [audioTracks, setAudioTracks] = useState<{ id: number; label: string; language: string; enabled: boolean }[]>([]);
     const [activeAudioTrack, setActiveAudioTrack] = useState<number>(0);
+    const [smartMuteEnabled, setSmartMuteEnabled] = useState(false);
+    const [muteRanges, setMuteRanges] = useState<{ start: number; end: number; reason: string }[]>([]);
+    const [wasManuallyMuted, setWasManuallyMuted] = useState(false);
 
     useSkipEngine({
         currentTime,
@@ -116,19 +123,83 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }, [isPlaying]);
 
     const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const newVol = parseFloat(e.target.value);
-        setVolume(newVol);
+        const newVolume = parseFloat(e.target.value);
+        setVolume(newVolume);
         if (videoRef.current) {
-            videoRef.current.volume = newVol;
-            videoRef.current.muted = newVol === 0;
+            videoRef.current.volume = newVolume;
+            if (newVolume === 0) {
+                setIsMuted(true);
+                videoRef.current.muted = true;
+            } else if (isMuted) {
+                setIsMuted(false);
+                videoRef.current.muted = false;
+            }
         }
-        setIsMuted(newVol === 0);
+    }, [isMuted]);
+
+    // Smart Mute: Analyze subtitle file for profanity
+    const analyzeSubtitleForProfanity = useCallback(async (filePath: string) => {
+        try {
+            console.log('[SmartMute] Analyzing subtitle:', filePath);
+            // Read subtitle file content via IPC
+            const content = await window.ipcRenderer.invoke('read-file', filePath.replace('file://', ''));
+
+            // Send to backend for analysis
+            const ranges = await window.ipcRenderer.invoke('safety:analyze-content', content) as { start: number; end: number; reason: string }[];
+
+            if (ranges && Array.isArray(ranges) && ranges.length > 0) {
+                setMuteRanges(ranges);
+                console.log(`[SmartMute] Found ${ranges.length} profanity ranges`);
+            } else {
+                setMuteRanges([]);
+                console.log('[SmartMute] No profanity detected');
+            }
+        } catch (error) {
+            console.error('[SmartMute] Failed to analyze subtitle:', error);
+            setMuteRanges([]);
+        }
     }, []);
+
+    // Smart Mute: Check current time and auto-mute if needed
+    const checkAndApplySmartMute = useCallback((currentTime: number) => {
+        if (!videoRef.current) return;
+
+        // Check if current time is within any unsafe range
+        const inUnsafeRange = muteRanges.some(
+            range => currentTime >= range.start && currentTime <= range.end
+        );
+
+        // Auto-mute/unmute based on range
+        if (inUnsafeRange && !isMuted) {
+            console.log('[SmartMute] Auto-muting at', currentTime.toFixed(2));
+            videoRef.current.muted = true;
+            setIsMuted(true);
+        } else if (!inUnsafeRange && isMuted && !wasManuallyMuted) {
+            console.log('[SmartMute] Auto-unmuting at', currentTime.toFixed(2));
+            videoRef.current.muted = false;
+            setIsMuted(false);
+        }
+    }, [muteRanges, isMuted, wasManuallyMuted]);
+
+    // Re-analyze when Smart Mute is toggled and subtitle is loaded
+    useEffect(() => {
+        if (smartMuteEnabled && subtitleSrc && subtitleSrc.startsWith('file://')) {
+            analyzeSubtitleForProfanity(subtitleSrc);
+        } else if (!smartMuteEnabled) {
+            setMuteRanges([]);
+            // Unmute if it was auto-muted
+            if (isMuted && !wasManuallyMuted && videoRef.current) {
+                videoRef.current.muted = false;
+                setIsMuted(false);
+            }
+        }
+    }, [smartMuteEnabled, subtitleSrc, analyzeSubtitleForProfanity, isMuted, wasManuallyMuted]);
 
     const toggleMute = useCallback(() => {
         if (!videoRef.current) return;
         const newMuted = !isMuted;
         setIsMuted(newMuted);
+        setWasManuallyMuted(newMuted); // Track manual mute
         videoRef.current.muted = newMuted;
         if (!newMuted && volume === 0) {
             setVolume(0.5);
@@ -173,6 +244,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 setSubtitleSrc(path);
                 setActiveTrackLabel(item.name);
                 setShowSettings(false);
+
+                // Analyze subtitle for profanity if Smart Mute is enabled
+                if (smartMuteEnabled && path.startsWith('file://')) {
+                    analyzeSubtitleForProfanity(path);
+                }
             }
         } finally {
             setIsDownloadingSub(false);
@@ -194,10 +270,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             const t = videoRef.current.currentTime;
             setCurrentTime(t);
             onTimeUpdate?.(t);
+
+            // Smart Mute: Check if current time is in unsafe range
+            if (smartMuteEnabled && !wasManuallyMuted) {
+                checkAndApplySmartMute(t);
+            }
+
             // If playing, stop buffering
             if (isBuffering && isPlaying) setIsBuffering(false);
         }
-    }, [onTimeUpdate, isBuffering, isPlaying]);
+    }, [onTimeUpdate, isBuffering, isPlaying, smartMuteEnabled, wasManuallyMuted, checkAndApplySmartMute]);
 
     const handleLoadedMetadata = useCallback(() => {
         if (videoRef.current) {
@@ -492,107 +574,164 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                                 <Settings size={22} />
                             </button>
 
-                            {/* Settings Dropdown */}
+                            {/* Settings Dropdown with Tabs */}
                             {showSettings && (
-                                <div className="absolute bottom-full right-0 mb-4 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 max-h-96 flex flex-col">
-                                    <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center sticky top-0 bg-gray-900/95 z-10 shrink-0">
-                                        <span className="font-semibold text-white text-sm">Settings</span>
-                                        <button onClick={() => setShowSettings(false)} className="text-white/40 hover:text-white"><X size={16} /></button>
+                                <div className="absolute bottom-full right-0 mb-4 w-80 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 max-h-[500px] flex flex-col">
+                                    {/* Header with Tabs */}
+                                    <div className="px-4 py-2 border-b border-white/10 sticky top-0 bg-gray-900/95 z-10 shrink-0">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="font-semibold text-white text-sm">Player Settings</span>
+                                            <button onClick={() => setShowSettings(false)} className="text-white/40 hover:text-white"><X size={16} /></button>
+                                        </div>
+                                        {/* Tab Bar */}
+                                        <div className="flex gap-1 bg-white/5 rounded-lg p-1">
+                                            <button
+                                                onClick={() => setSettingsTab('settings')}
+                                                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium transition-all ${settingsTab === 'settings' ? 'bg-cyan-500 text-white' : 'text-white/60 hover:text-white'}`}
+                                            >
+                                                ⚙️ Settings
+                                            </button>
+                                            <button
+                                                onClick={() => setSettingsTab('subtitles')}
+                                                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium transition-all ${settingsTab === 'subtitles' ? 'bg-purple-500 text-white' : 'text-white/60 hover:text-white'}`}
+                                            >
+                                                💬 Subtitles
+                                            </button>
+                                        </div>
                                     </div>
 
+                                    {/* Tab Content */}
                                     <div className="p-2 space-y-1 overflow-y-auto scrollbar-hide">
-                                        {/* Speed Control */}
-                                        <button onClick={() => {
-                                            const speeds = [0.5, 1, 1.25, 1.5, 2];
-                                            const currentIdx = speeds.indexOf(playbackRate);
-                                            const nextSpeed = speeds[(currentIdx + 1) % speeds.length];
-                                            setPlaybackRate(nextSpeed);
-                                            if (videoRef.current) videoRef.current.playbackRate = nextSpeed;
-                                        }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
-                                            <span className="flex items-center gap-2"><Gauge size={16} className="text-pink-400" /> Speed</span>
-                                            <span className="font-mono text-xs opacity-60">{playbackRate}x</span>
-                                        </button>
-
-                                        <div className="h-px bg-white/10 my-1" />
-
-                                        {audioTracks.length > 1 && (
+                                        {settingsTab === 'settings' && (
                                             <>
-                                                <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Audio</div>
-                                                {audioTracks.map((track) => (
-                                                    <button
-                                                        key={track.id}
-                                                        onClick={() => changeAudioTrack(track.id)}
-                                                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
-                                                    >
-                                                        <span className="flex items-center gap-2">
-                                                            <Music size={16} className={activeAudioTrack === track.id ? "text-cyan-400" : "text-white/40"} />
-                                                            {track.label}
-                                                            {track.language && <span className="text-[10px] bg-white/10 px-1.5 rounded uppercase">{track.language}</span>}
-                                                        </span>
-                                                        {activeAudioTrack === track.id && <Check size={14} className="text-cyan-400" />}
+                                                {/* Speed Control */}
+                                                <button onClick={() => {
+                                                    const speeds = [0.5, 1, 1.25, 1.5, 2];
+                                                    const currentIdx = speeds.indexOf(playbackRate);
+                                                    const nextSpeed = speeds[(currentIdx + 1) % speeds.length];
+                                                    setPlaybackRate(nextSpeed);
+                                                    if (videoRef.current) videoRef.current.playbackRate = nextSpeed;
+                                                }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
+                                                    <span className="flex items-center gap-2"><Gauge size={16} className="text-pink-400" /> Speed</span>
+                                                    <span className="text-white/60">{playbackRate}x</span>
+                                                </button>
+
+                                                {/* Smart Mute */}
+                                                <button onClick={() => setSmartMuteEnabled(!smartMuteEnabled)} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
+                                                    <span className="flex items-center gap-2">
+                                                        <ShieldAlert size={16} className="text-orange-400" />
+                                                        Smart Mute
+                                                    </span>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${smartMuteEnabled ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/40'}`}>
+                                                        {smartMuteEnabled ? 'ON' : 'OFF'}
+                                                    </span>
+                                                </button>
+
+                                                {/* PiP */}
+                                                <button onClick={togglePiP} disabled={!document.pictureInPictureEnabled} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group disabled:opacity-50">
+                                                    <span className="flex items-center gap-2"><PictureInPicture2 size={16} className="text-purple-400" /> PiP Mode</span>
+                                                </button>
+
+                                                {/* Audio Tracks */}
+                                                {audioTracks.length > 1 && (
+                                                    <>
+                                                        <div className="h-px bg-white/10 my-1" />
+                                                        <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Audio</div>
+                                                        {audioTracks.map((track) => (
+                                                            <button
+                                                                key={track.id}
+                                                                onClick={() => changeAudioTrack(track.id)}
+                                                                className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
+                                                            >
+                                                                <span className="flex items-center gap-2">
+                                                                    <Music size={16} className={activeAudioTrack === track.id ? "text-cyan-400" : "text-white/40"} />
+                                                                    {track.label}
+                                                                    {track.language && <span className="text-[10px] bg-white/10 px-1.5 rounded uppercase">{track.language}</span>}
+                                                                </span>
+                                                                {activeAudioTrack === track.id && <Check size={14} className="text-cyan-400" />}
+                                                            </button>
+                                                        ))}
+                                                        <div className="h-px bg-white/10 my-1" />
+                                                    </>
+                                                )}
+
+                                                {/* Actions */}
+                                                <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Actions</div>
+
+                                                {onChangeSource && (
+                                                    <button onClick={() => { setShowSettings(false); onChangeSource(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
+                                                        <span className="flex items-center gap-2"><RefreshCw size={16} className="text-cyan-400" /> Change Source</span>
                                                     </button>
-                                                ))}
-                                                <div className="h-px bg-white/10 my-1" />
+                                                )}
+
+                                                {onCheckContent && (
+                                                    <button onClick={() => { setShowSettings(false); onCheckContent(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
+                                                        <span className="flex items-center gap-2"><ShieldAlert size={16} className="text-orange-400" /> Parents Guide</span>
+                                                    </button>
+                                                )}
+
+                                                {onOpenVLC && (
+                                                    <button onClick={() => { setShowSettings(false); onOpenVLC(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
+                                                        <span className="flex items-center gap-2"><Download size={16} className="text-green-400" /> Open in VLC</span>
+                                                    </button>
+                                                )}
                                             </>
                                         )}
 
+                                        {settingsTab === 'subtitles' && (
+                                            <>
+                                                {/* Manual Subtitle Search */}
+                                                {onSearchSubtitles && (
+                                                    <button
+                                                        onClick={() => {
+                                                            onSearchSubtitles();
+                                                            setShowSettings(false);
+                                                        }}
+                                                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group"
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <Search size={16} className="text-blue-400" />
+                                                            Search Subtitles
+                                                        </span>
+                                                        <ChevronRight size={14} className="text-white/20" />
+                                                    </button>
+                                                )}
 
-                                        {/* Actions Section */}
-                                        <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Actions</div>
+                                                {availableSubtitles.length > 0 && (
+                                                    <>
+                                                        <div className="h-px bg-white/10 my-1" />
+                                                        <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Online Subtitles</div>
+                                                        {availableSubtitles.map(item => (
+                                                            <button key={item.id} disabled={isDownloadingSub} onClick={() => handleSubtitleDownload(item)} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group disabled:opacity-50">
+                                                                <span className="flex items-center gap-2 truncate max-w-[180px]" title={item.name}>
+                                                                    <Languages size={16} className={item.lang === 'tr' ? "text-red-500 shrink-0" : "text-blue-400 shrink-0"} />
+                                                                    <span className="truncate">{item.name}</span>
+                                                                </span>
+                                                                {activeTrackLabel === item.name ? <Check size={14} className="text-green-400 flex-shrink-0" /> : <Download size={14} className="text-white/20 group-hover:text-white/60 flex-shrink-0" />}
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
 
-                                        {onChangeSource && (
-                                            <button onClick={() => { setShowSettings(false); onChangeSource(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
-                                                <span className="flex items-center gap-2"><RefreshCw size={16} className="text-cyan-400" /> Change Source</span>
-                                            </button>
+                                                <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white flex items-center gap-2">
+                                                    <ClosedCaption size={16} className="text-yellow-400" /> Upload Custom (.srt)
+                                                </button>
+
+                                                <div className="h-px bg-white/10 my-1" />
+                                                <button onClick={() => { if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.pause(); setIsPlaying(false); } setShowSettings(false); }} className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors flex items-center gap-2">
+                                                    <RotateCcw size={16} /> Reset Video
+                                                </button>
+                                            </>
                                         )}
-
-                                        {onCheckContent && (
-                                            <button onClick={() => { setShowSettings(false); onCheckContent(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
-                                                <span className="flex items-center gap-2"><ShieldAlert size={16} className="text-orange-400" /> Parents Guide</span>
-                                            </button>
-                                        )}
-
-                                        {onOpenVLC && (
-                                            <button onClick={() => { setShowSettings(false); onOpenVLC(); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
-                                                <span className="flex items-center gap-2"><Download size={16} className="text-purple-400" /> Open in VLC</span>
-                                            </button>
-                                        )}
-
-                                        <div className="h-px bg-white/10 my-1" />
-
-                                        {/* Subtitle Section */}
-                                        <div className="px-2 py-1.5 text-xs font-bold text-white/40 uppercase tracking-wider">Subtitles</div>
-                                        <button onClick={() => { setSubtitleSrc(''); setActiveTrackLabel('Off'); setShowSettings(false); }} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group">
-                                            <span className="flex items-center gap-2"><Languages size={16} className="text-red-400" /> Off</span>
-                                            {activeTrackLabel === 'Off' && <Check size={14} className="text-red-400" />}
-                                        </button>
-
-                                        {availableSubtitles.length > 0 ? availableSubtitles.map(item => (
-                                            <button key={item.id} disabled={isDownloadingSub} onClick={() => handleSubtitleDownload(item)} className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white group disabled:opacity-50">
-                                                <span className="flex items-center gap-2 truncate max-w-[180px]" title={item.name}>
-                                                    <Languages size={16} className={item.lang === 'tr' ? "text-red-500 shrink-0" : "text-blue-400 shrink-0"} />
-                                                    <span className="truncate">{item.name}</span>
-                                                </span>
-                                                {activeTrackLabel === item.name ? <Check size={14} className="text-green-400 flex-shrink-0" /> : <Download size={14} className="text-white/20 group-hover:text-white/60 flex-shrink-0" />}
-                                            </button>
-                                        )) : <p className="px-3 py-2 text-sm text-white/40 italic">No online subtitles found.</p>}
-
-                                        <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm text-white flex items-center gap-2">
-                                            <ClosedCaption size={16} className="text-yellow-400" /> Upload Custom (.srt)
-                                        </button>
-
-                                        <div className="h-px bg-white/10 my-1" />
-                                        <button onClick={() => { if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.pause(); setIsPlaying(false); } setShowSettings(false); }} className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg text-sm transition-colors flex items-center gap-2">
-                                            <RotateCcw size={16} /> Reset Video
-                                        </button>
                                     </div>
                                 </div>
                             )}
+
+                            <input type="file" accept=".srt,.vtt" ref={fileInputRef} onChange={handleSubtitleFileSelect} style={{ display: 'none' }} />
                         </div>
                     </div>
                 </div>
             </div>
-            <input type="file" accept=".srt,.vtt" ref={fileInputRef} onChange={handleSubtitleFileSelect} style={{ display: 'none' }} />
         </div>
     );
 };

@@ -8,19 +8,82 @@ import AdmZip from 'adm-zip';
 import iconv from 'iconv-lite';
 import jschardet from 'jschardet';
 
-const SUBS_CACHE_DIR = path.join(app.getPath('userData'), 'PrismoPlayerSubs');
-
-if (!fs.existsSync(SUBS_CACHE_DIR)) {
-    fs.mkdirSync(SUBS_CACHE_DIR, { recursive: true });
-}
+// Lazy initialization for getSubsCacheDir()
+let _subsCacheDir: string | null = null;
+const getSubsCacheDir = (): string => {
+    if (!_subsCacheDir) {
+        _subsCacheDir = path.join(app.getPath('userData'), 'PrismoPlayerSubs');
+        if (!fs.existsSync(_subsCacheDir)) {
+            fs.mkdirSync(_subsCacheDir, { recursive: true });
+        }
+    }
+    return _subsCacheDir;
+};
 
 const AXIOS_CONFIG = {
     headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     },
-    responseType: 'arraybuffer' as const
+    timeout: 10000
 };
 
+/**
+ * Subscene - Primary subtitle source (No API key, great Turkish support)
+ */
+const listSubscene = async (imdbId: string): Promise<SubtitleItem[]> => {
+    try {
+        // Subscene uses movie title URLs, we'll search by IMDb ID
+        const searchUrl = `https://subscene.com/subtitles/title?q=${imdbId}`;
+        const { data: searchHtml } = await axios.get(searchUrl, AXIOS_CONFIG);
+        const $search = cheerio.load(searchHtml);
+
+        // Find the movie link
+        const movieLink = $search('.search-result a').first().attr('href');
+        if (!movieLink) {
+            console.log('[Subscene] No movie found for', imdbId);
+            return [];
+        }
+
+        // Fetch subtitle list for that movie
+        const movieUrl = `https://subscene.com${movieLink}`;
+        const { data: movieHtml } = await axios.get(movieUrl, AXIOS_CONFIG);
+        const $ = cheerio.load(movieHtml);
+
+        const items: SubtitleItem[] = [];
+
+        $('.table tbody tr').each((_, el) => {
+            const lang = $(el).find('.a1 span').text().trim();
+            const name = $(el).find('.a1 span[2]').text().trim();
+            const link = $(el).find('.a1 a').attr('href');
+            const rating = $(el).find('.a3').text().trim();
+
+            // Focus on Turkish and English
+            if ((lang.toLowerCase().includes('turkish') || lang.toLowerCase().includes('english')) && link) {
+                const fullLink = `https://subscene.com${link}`;
+                const ratingNum = rating.includes('positive') ? 10 : rating.includes('neutral') ? 5 : 1;
+
+                items.push({
+                    id: Buffer.from(fullLink).toString('base64'),
+                    lang: lang.toLowerCase().includes('turkish') ? 'tr' : 'en',
+                    name: `[Subscene] ${lang.includes('Turkish') ? '🇹🇷' : '🇺🇸'} ${name || 'Subscene'} (★${ratingNum})`,
+                    url: fullLink,
+                    rating: ratingNum,
+                    source: 'YIFY' // Reuse YIFY type for simplicity
+                });
+            }
+        });
+
+        console.log(`[Subscene] Found ${items.length} subtitles for ${imdbId}`);
+        return items;
+    } catch (error) {
+        console.error('[Subscene] Search failed:', error);
+        return [];
+    }
+};
+
+/**
+ * YIFY Subtitles - Reliable source, no API key needed
+ */
 export interface SubtitleItem {
     id: string;
     lang: string;
@@ -74,7 +137,7 @@ const listYIFY = async (imdbId: string): Promise<SubtitleItem[]> => {
                 items.push({
                     id: Buffer.from(fullLink).toString('base64'),
                     lang: langLower.includes('turkish') ? 'tr' : 'en',
-                    name: `${lang === 'Turkish' ? '🇹🇷' : '🇺🇸'} ${releaseName} (★${rating})`,
+                    name: `[YIFY] ${lang === 'Turkish' ? '🇹🇷' : '🇺🇸'} ${releaseName} (★${rating})`,
                     url: fullLink,
                     rating,
                     source: 'YIFY'
@@ -123,10 +186,10 @@ const listOpenSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => {
         }
 
         return data.data.map((item: OpenSubtitlesItem) => ({
-            id: item.attributes.files[0].file_id.toString(), // Store file_id
-            lang: item.attributes.language === 'tr' ? 'tr' : 'en',
-            name: `${item.attributes.language === 'tr' ? '🇹🇷' : '🇺🇸'} ${item.attributes.release} (★${item.attributes.ratings}) [OS]`,
-            url: '', // Not used for direct download, we use ID
+            id: item.attributes.files[0]?.file_id?.toString() || '',
+            lang: item.attributes.language,
+            name: `[OpenSub] ${item.attributes.language === 'tr' ? '🇹🇷' : '🇺🇸'} ${item.attributes.release} (★${Math.round(item.attributes.ratings)})`,
+            url: '', // Populated later via download
             rating: item.attributes.ratings,
             source: 'OpenSubtitles' as const
         }));
@@ -141,22 +204,56 @@ const listOpenSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => {
 // --- Aggregator ---
 
 export const listSubtitles = async (imdbId: string): Promise<SubtitleItem[]> => {
-    console.log(`[Subtitles] Aggregating for ${imdbId}`);
+    try {
+        console.log(`[Subtitles] Searching for IMDb: ${imdbId}`);
 
-    // Only YIFY for now
-    const yifyPromise = listYIFY(imdbId);
-    const osPromise = listOpenSubtitles(imdbId);
+        // Try Subscene first (best for Turkish, no API limits)
+        let subsceneResults: SubtitleItem[] = [];
+        try {
+            subsceneResults = await listSubscene(imdbId);
+            console.log(`[Subtitles] Subscene found ${subsceneResults.length} results`);
+        } catch (err) {
+            console.error('[Subtitles] Subscene search failed:', err);
+        }
 
-    const [yify, os] = await Promise.all([yifyPromise, osPromise]);
+        // Then try YIFY (reliable backup)
+        let yifyResults: SubtitleItem[] = [];
+        try {
+            yifyResults = await listYIFY(imdbId);
+            console.log(`[Subtitles] YIFY found ${yifyResults.length} results`);
+        } catch (err) {
+            console.error('[Subtitles] YIFY search failed:', err);
+        }
 
-    const combined = [...yify, ...os];
+        // OpenSubtitles as last resort (rate limited)
+        let openSubResults: SubtitleItem[] = [];
+        try {
+            openSubResults = await listOpenSubtitles(imdbId);
+            console.log(`[Subtitles] OpenSubtitles found ${openSubResults.length} results`);
+        } catch (err) {
+            console.error('[Subtitles] OpenSubtitles search failed (expected if rate limited):', err);
+        }
 
-    // Sort: TR first, then Rating
-    return combined.sort((a, b) => {
-        if (a.lang === 'tr' && b.lang !== 'tr') return -1;
-        if (a.lang !== 'tr' && b.lang === 'tr') return 1;
-        return b.rating - a.rating;
-    });
+        // Combine all sources
+        const combined = [...subsceneResults, ...yifyResults, ...openSubResults];
+
+        // Sort: Turkish first, then English, then by rating
+        combined.sort((a, b) => {
+            // Turkish vs English
+            if (a.lang === 'tr' && b.lang !== 'tr') return -1;
+            if (a.lang !== 'tr' && b.lang === 'tr') return 1;
+
+            // Same language, sort by rating
+            return (b.rating || 0) - (a.rating || 0);
+        });
+
+        console.log(`[Subtitles] Total found: ${combined.length} (Subscene: ${subsceneResults.length}, YIFY: ${yifyResults.length}, OpenSub: ${openSubResults.length})`);
+        console.log(`[Subtitles] Turkish: ${combined.filter(s => s.lang === 'tr').length} | English: ${combined.filter(s => s.lang === 'en').length}`);
+        return combined;
+    } catch (error) {
+        console.error('[Subtitles] Listing failed:', error);
+        return [];
+    }
 };
 
 export const downloadSubtitle = async (item: SubtitleItem, imdbId: string): Promise<string | null> => {
@@ -178,28 +275,41 @@ export const downloadSubtitle = async (item: SubtitleItem, imdbId: string): Prom
             if (zipUrl && !zipUrl.startsWith('http')) zipUrl = `https://yifysubtitles.org${zipUrl}`;
             downloadUrl = zipUrl;
         } else if (item.source === 'OpenSubtitles') {
-            const settings = getSettings();
-            const apiKey = settings.openSubtitlesApiKey;
-            if (!apiKey) throw new Error('No API Key');
+            try {
+                const settings = getSettings();
+                const apiKey = settings.openSubtitlesApiKey || 'kfUEFMeQ6s3WzvvQCMWdPLdSPt6RNfHF';
 
-            // Request download link
-            const { data } = await axios.post('https://api.opensubtitles.com/api/v1/download', {
-                file_id: parseInt(item.id)
-            }, {
-                headers: {
-                    'Api-Key': apiKey,
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'PrismoPlayer v1.0'
+                // Request download link
+                const { data } = await axios.post('https://api.opensubtitles.com/api/v1/download', {
+                    file_id: parseInt(item.id)
+                }, {
+                    headers: {
+                        'Api-Key': apiKey,
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'PrismoPlayer v1.0'
+                    },
+                    timeout: 10000
+                });
+
+                if (data && data.link) {
+                    downloadUrl = data.link;
                 }
-            });
+            } catch (apiError: unknown) {
+                const error = apiError as { response?: { status?: number }; code?: string; message?: string };
 
-            if (data && data.link) {
-                downloadUrl = data.link;
-                // OpenSubtitles usually returns exact file, not zip, but sometimes zip?
-                // Actually REST API returns a link that might resolve to the file directly or a temp download link.
-                // Let's assume it might be raw file or zip. WE will check Content-Type or magic bytes if easier?
-                // But `processZipBuffer` expects ZIP. If it is raw SRT/VTT, we need to handle it.
-                // Let's download it first.
+                if (error.response?.status === 503) {
+                    console.error('[Subtitles] ⚠️ OpenSubtitles API is temporarily unavailable (503)');
+                    throw new Error('OpenSubtitles service is temporarily down. Please try YIFY subtitles instead or wait a few minutes.');
+                } else if (error.response?.status === 429) {
+                    console.error('[Subtitles] ⚠️ Rate limit exceeded on OpenSubtitles API');
+                    throw new Error('Too many subtitle requests. Please wait 60 seconds and try again.');
+                } else if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+                    console.error('[Subtitles] ⚠️ Network error connecting to OpenSubtitles');
+                    throw new Error('Network error. Check your internet connection and try again.');
+                } else {
+                    console.error('[Subtitles] OpenSubtitles API error:', error.response?.status || error.message);
+                    throw new Error('Failed to download from OpenSubtitles. Try YIFY subtitles instead.');
+                }
             }
         }
 
@@ -214,9 +324,6 @@ export const downloadSubtitle = async (item: SubtitleItem, imdbId: string): Prom
                 return processZipBuffer(fileData, item.lang, imdbId, item.source);
             } else {
                 // Assuming it's the raw subtitle file (srt/vtt)
-                // Need to convert to VTT if SRT
-                // And save.
-                // Naive conversion if unknown encoding? OpenSubtitles mostly UTF-8 now.
                 const buffer = Buffer.from(fileData);
                 const detected = jschardet.detect(buffer);
                 const encoding = detected.encoding || 'utf-8';
@@ -229,7 +336,7 @@ export const downloadSubtitle = async (item: SubtitleItem, imdbId: string): Prom
                 }
 
                 const filename = `${imdbId}-${item.lang}-${item.source}-${Date.now()}.vtt`;
-                const filePath = path.join(SUBS_CACHE_DIR, filename);
+                const filePath = path.join(getSubsCacheDir(), filename);
                 fs.writeFileSync(filePath, vttData);
                 return `file://${filePath}`;
             }
@@ -239,6 +346,10 @@ export const downloadSubtitle = async (item: SubtitleItem, imdbId: string): Prom
 
     } catch (error) {
         console.error('[Subtitles] Download failed:', error);
+        // Re-throw user-friendly errors
+        if (error instanceof Error && error.message.includes('OpenSubtitles')) {
+            throw error;
+        }
         return null;
     }
 };
@@ -263,7 +374,7 @@ const processZipBuffer = (buffer: Buffer, lang: string, imdbId: string, source: 
         const vttData = srtToVtt(srtData);
 
         const filename = `${imdbId}-${lang}-${source}-${Date.now()}.vtt`;
-        const filePath = path.join(SUBS_CACHE_DIR, filename);
+        const filePath = path.join(getSubsCacheDir(), filename);
         fs.writeFileSync(filePath, vttData);
 
         return `file://${filePath}`;

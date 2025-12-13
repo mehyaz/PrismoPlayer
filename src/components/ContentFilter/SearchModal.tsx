@@ -1,6 +1,14 @@
 import React from 'react';
-import { X, Film, AlertCircle, ChevronRight, Search, Loader2 } from 'lucide-react';
+import { X, Film, AlertCircle, ChevronRight, Search, Loader2, Shield, AlertTriangle } from 'lucide-react';
 import { Movie } from '../../types';
+
+interface FamilyProfile {
+  id: string;
+  name: string;
+  maxAge: number;
+  blockedCategories: string[];
+  blockedKeywords: string[];
+}
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -10,12 +18,43 @@ interface SearchModalProps {
   query: string;
   isLoading: boolean;
   error?: string;
+  activeProfile: FamilyProfile | null;
 }
 
-export const SearchModal: React.FC<SearchModalProps> = ({ 
-    isOpen, onClose, onSelectMovie, results, query, isLoading, error 
+export const SearchModal: React.FC<SearchModalProps> = ({
+  isOpen, onClose, onSelectMovie, results, query, isLoading, error, activeProfile
 }) => {
   if (!isOpen) return null;
+
+  // Check if content is appropriate for active profile
+  const isContentRestricted = (movie: Movie): { restricted: boolean; reason?: string } => {
+    if (!activeProfile) return { restricted: false };
+
+    // Check year for rough age estimation (simplified)
+    if (movie.year) {
+      const currentYear = new Date().getFullYear();
+      const movieAge = currentYear - parseInt(movie.year);
+
+      // Very loose heuristic: newer R-rated movies might be flagged
+      // In real implementation, you'd check TMDB/IMDb ratings
+      if (activeProfile.maxAge < 18 && movieAge < 5) {
+        // Just a placeholder - real check would use actual ratings
+      }
+    }
+
+    // Check title for blocked keywords
+    if (activeProfile.blockedKeywords.length > 0) {
+      const titleLower = movie.title.toLowerCase();
+      const foundKeyword = activeProfile.blockedKeywords.find(keyword =>
+        titleLower.includes(keyword.toLowerCase())
+      );
+      if (foundKeyword) {
+        return { restricted: true, reason: 'Blocked keyword detected' };
+      }
+    }
+
+    return { restricted: false };
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -24,7 +63,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
       {/* Modal Content */}
       <div className="relative w-full max-w-lg bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">
-        
+
         {/* Header */}
         <div className="p-5 border-b border-white/10 bg-white/5 flex justify-between items-center">
           <div>
@@ -33,8 +72,14 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               Search Results
             </h2>
             <p className="text-xs text-white/40 mt-1">
-                for "<span className="text-white/80 font-medium">{query}</span>"
+              for "<span className="text-white/80 font-medium">{query}</span>"
             </p>
+            {activeProfile && (
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-purple-400">
+                <Shield size={12} />
+                <span>Filtering for: {activeProfile.name}</span>
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -48,8 +93,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 text-white/40 gap-3">
-                <Loader2 className="animate-spin text-cyan-500" size={32} />
-                <p className="text-sm">Searching IMDb...</p>
+              <Loader2 className="animate-spin text-cyan-500" size={32} />
+              <p className="text-sm">Searching IMDb...</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-12 text-red-400/80 gap-3">
@@ -63,37 +108,56 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             </div>
           ) : (
             <div className="space-y-1 p-1">
-              {results.map((movie) => (
-                <button
-                  key={movie.id}
-                  onClick={() => onSelectMovie(movie)}
-                  className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 transition-all group text-left"
-                >
-                  {/* Poster Thumbnail */}
-                  <div className="w-10 h-14 bg-white/5 rounded-md overflow-hidden flex-shrink-0 border border-white/5 group-hover:border-white/20 transition-colors relative">
-                      {movie.image ? (
-                          <img src={movie.image} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/10">
-                              <Film size={16} />
-                          </div>
-                      )}
-                  </div>
-                  
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-medium text-white group-hover:text-cyan-400 transition-colors truncate">
-                      {movie.title}
-                    </h3>
-                    <p className="text-sm text-white/40 mt-0.5">
-                        {movie.year || 'Unknown Year'}
-                    </p>
-                  </div>
+              {results.map((movie) => {
+                const contentCheck = isContentRestricted(movie);
 
-                  <div className="text-white/20 group-hover:text-white/60 transition-colors">
+                return (
+                  <button
+                    key={movie.id}
+                    onClick={() => onSelectMovie(movie)}
+                    className={`w-full flex items-center gap-4 p-3 rounded-xl border transition-all group text-left ${contentCheck.restricted
+                        ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40'
+                        : 'hover:bg-white/5 border-transparent hover:border-white/5'
+                      }`}
+                  >
+                    {/* Poster Thumbnail */}
+                    <div className="w-10 h-14 bg-white/5 rounded-md overflow-hidden flex-shrink-0 border border-white/5 group-hover:border-white/20 transition-colors relative">
+                      {movie.image ? (
+                        <img src={movie.image} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/10">
+                          <Film size={16} />
+                        </div>
+                      )}
+                      {contentCheck.restricted && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center">
+                          <AlertTriangle size={16} className="text-red-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className={`text-base font-medium transition-colors truncate ${contentCheck.restricted ? 'text-red-400' : 'text-white group-hover:text-cyan-400'
+                        }`}>
+                        {movie.title}
+                      </h3>
+                      <p className="text-sm text-white/40 mt-0.5">
+                        {movie.year || 'Unknown Year'}
+                      </p>
+                      {contentCheck.restricted && contentCheck.reason && (
+                        <p className="text-[10px] text-red-400/80 mt-1 flex items-center gap-1">
+                          <AlertTriangle size={10} />
+                          {contentCheck.reason}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="text-white/20 group-hover:text-white/60 transition-colors">
                       <ChevronRight size={20} />
-                  </div>
-                </button>
-              ))}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VideoPlayer } from './components/Player/VideoPlayer';
-import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem, TorrentItem, Episode } from './types';
+import { getContentWarnings, fetchParentsGuide, estimateRatingFromWarnings } from './utils/contentWarnings';
+import { SkipSegment, Movie, RecentlyWatchedItem, TorrentProgress, SubtitleItem, TorrentItem, Episode, FamilyProfile } from './types';
 import { FileSelectionModal } from './components/ContentFilter/FileSelectionModal';
 import { Clock } from 'lucide-react';
 import { SearchModal } from './components/ContentFilter/SearchModal';
@@ -14,6 +15,7 @@ import { MainLayout } from './components/Layout/MainLayout';
 import { Hero } from './components/Home/Hero';
 import { LoadingOverlay } from './components/Player/LoadingOverlay';
 import { LibraryView } from './components/Library/LibraryView';
+import { PINPromptModal } from './components/PINPromptModal';
 
 function App() {
   const [videoSrc, setVideoSrc] = useState<string>('');
@@ -50,6 +52,24 @@ function App() {
   const [activeSource, setActiveSource] = useState<string>('');
   const [initialPlaybackTime, setInitialPlaybackTime] = useState(0);
 
+  // Family Safety State
+  const [activeProfile, setActiveProfile] = useState<FamilyProfile & { color: string }>({
+    id: 'adult',
+    name: 'Adult',
+    maxAge: 99,
+    blockedCategories: [],
+    blockedKeywords: [],
+    color: 'from-purple-500 to-pink-500'
+  });
+  const [isPINModalOpen, setIsPINModalOpen] = useState(false);
+  const [pinModalContext, setPinModalContext] = useState<{
+    movieTitle: string;
+    rating: string;
+    reason: string;
+    contentWarnings?: Array<{ category: string; severity: 'none' | 'mild' | 'moderate' | 'severe'; items?: string[] }>;
+  } | null>(null);
+  const [pendingMovie, setPendingMovie] = useState<Movie | null>(null);
+
   const playerCurrentTimeRef = useRef(playerCurrentTime);
   const activeSourceRef = useRef(activeSource); // Ref to access inside interval
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -78,6 +98,28 @@ function App() {
     } catch (e) {
       console.error('Failed to parse recently watched', e);
     }
+  }, []);
+
+  // Load active profile on mount
+  useEffect(() => {
+    const loadActiveProfile = async () => {
+      try {
+        if (window.ipcRenderer) {
+          const profile = await window.ipcRenderer.invoke('family:get-active-profile') as FamilyProfile;
+          // Map profile to state with color (demo logic for color)
+          const color = profile.id === 'kids-7' ? 'from-green-500 to-teal-500' :
+            profile.id === 'teens-13' ? 'from-orange-500 to-red-500' :
+              profile.id === 'family-16' ? 'from-purple-500 to-indigo-500' :
+                'from-purple-500 to-pink-500';
+
+          setActiveProfile({ ...profile, color });
+          console.log('[FamilySafety] Loaded active profile:', profile?.name || 'Unknown');
+        }
+      } catch (error) {
+        console.error('[FamilySafety] Failed to load profile:', error);
+      }
+    };
+    loadActiveProfile();
   }, []);
 
   useEffect(() => {
@@ -120,13 +162,15 @@ function App() {
 
       const title = selectedMovie?.title || path.split('/').pop() || 'Unknown Video';
       const duration = videoDurationRef.current;
+      const imdbId = selectedMovie?.id; // Save IMDb ID for subtitle search
 
       const newItem = {
         path,
         timestamp: Date.now(),
         progress: time,
         duration,
-        title
+        title,
+        imdbId // Add IMDb ID to history
       };
       // Keep only top 10
       const updated = [newItem, ...filtered].slice(0, 10);
@@ -159,6 +203,8 @@ function App() {
 
   const handleBack = useCallback(async () => {
     setVideoSrc('');
+    setActiveSource('');
+    setInitialPlaybackTime(0);
     setDownloadStats(null);
     setSubtitleList([]);
     try {
@@ -192,6 +238,7 @@ function App() {
     try {
       const filePath = await window.ipcRenderer.invoke('dialog:openFile');
       if (filePath) {
+        setInitialPlaybackTime(0); // Reset to start from beginning
         setVideoSrc(`file://${filePath}`);
         setActiveSource(`file://${filePath}`);
       }
@@ -201,8 +248,12 @@ function App() {
     }
   }, []);
 
-  const handleTorrentStream = useCallback(async (magnet: string, fileIndex?: number) => {
+  const handleTorrentStream = useCallback(async (magnet: string, fileIndex?: number, skipTimeReset = false) => {
     if (!magnet) return;
+    // Only reset time if NOT resuming from history
+    if (!skipTimeReset) {
+      setInitialPlaybackTime(0);
+    }
     setIsLoading(true);
     setIsTorrentListOpen(false);
 
@@ -341,17 +392,7 @@ function App() {
     }
   }, [selectedMovie]);
 
-  const handleChangeSource = useCallback(async () => {
-    if (!selectedMovie) {
-      alert('Cannot change source: No movie context.');
-      return;
-    }
-    await handleBack();
-    setIsTorrentListOpen(true);
-    if (torrentList.length === 0) {
-      handleFindTorrent(selectedMovie);
-    }
-  }, [selectedMovie, handleBack, torrentList, handleFindTorrent]);
+
 
   const handleDownloadSubtitle = useCallback(async (item: SubtitleItem) => {
     if (!selectedMovie) return null;
@@ -367,19 +408,12 @@ function App() {
     }
   }, [selectedMovie]);
 
-  const handleOpenVLC = useCallback(async () => {
-    if (!videoSrc) return;
-    try {
-      if (window.ipcRenderer) {
-        await window.ipcRenderer.invoke('open-in-vlc', videoSrc);
-      }
-    } catch (err) {
-      console.error('Failed to open VLC:', err);
-      alert('Failed to open VLC. Make sure it is installed.');
-    }
-  }, [videoSrc]);
 
-  const handleMovieSelect = useCallback((movie: Movie) => {
+
+  // Define proceedWithMovie before it's used in handleMovieSelect
+
+
+  const proceedWithMovie = useCallback((movie: Movie) => {
     setSelectedMovie(movie);
     setIsSearchOpen(false);
 
@@ -391,6 +425,231 @@ function App() {
       handleFindTorrent(movie);
     }
   }, [handleFindTorrent]);
+
+  const handleMovieSelect = useCallback(async (movie: Movie) => {
+    // Check if content is restricted for active profile using TMDB ratings
+    if (activeProfile) {
+      let requiresPIN = false;
+      let reason = '';
+
+      // Kids profile: require PIN for all content unless we verify it's G-rated
+      if (activeProfile.id === 'kids-7') {
+        // Try to get TMDB rating
+        if (window.ipcRenderer && movie.id) {
+          try {
+            const cert = await window.ipcRenderer.invoke('tmdb:get-certification', movie.id) as { rating: string; country: string; isAdult: boolean } | null;
+
+            if (cert && cert.rating) {
+              // Only G-rated movies are OK for kids without PIN
+              if (cert.rating !== 'G') {
+                requiresPIN = true;
+                reason = `This movie is rated ${cert.rating}. Kids (7+) profile only allows G-rated content without parental approval.`;
+
+                // Fetch real parents guide data from IMDb
+                let contentWarnings = await fetchParentsGuide(movie.id);
+
+                // Fallback to demo warnings if no real data
+                if (contentWarnings.length === 0) {
+                  contentWarnings = getContentWarnings(movie.title);
+                }
+
+                // Set context for PIN modal
+                setPinModalContext({
+                  movieTitle: movie.title,
+                  rating: cert.rating,
+                  reason: reason,
+                  contentWarnings: contentWarnings
+                });
+              }
+            } else {
+              // No TMDB rating found - fetch parents guide and estimate rating
+              const contentWarnings = await fetchParentsGuide(movie.id);
+
+              if (contentWarnings.length > 0) {
+                // Estimate rating from content warnings
+                const estimatedRating = estimateRatingFromWarnings(contentWarnings);
+                console.log(`[FamilySafety] Estimated rating for "${movie.title}": ${estimatedRating}`);
+
+                // Apply same rating logic as if we had a TMDB rating
+                if (estimatedRating !== 'G') {
+                  requiresPIN = true;
+                  reason = `Based on content analysis, this movie is estimated as ${estimatedRating}. Kids (7+) profile only allows G-rated content without parental approval.`;
+
+                  setPinModalContext({
+                    movieTitle: movie.title,
+                    rating: estimatedRating,
+                    reason: reason,
+                    contentWarnings: contentWarnings
+                  });
+                }
+              } else {
+                // No rating AND no parents guide - require PIN for safety
+                requiresPIN = true;
+                reason = `Rating information not available for "${movie.title}". PIN required for Kids (7+) profile.`;
+
+                setPinModalContext({
+                  movieTitle: movie.title,
+                  rating: 'Not Rated',
+                  reason: reason
+                });
+              }
+            }
+          } catch (err) {
+            console.error('[Family] Failed to fetch TMDB rating:', err);
+            // Fallback to safe mode - require PIN
+            requiresPIN = true;
+            reason = `All content requires parental approval for Kids (7+) profile.`;
+          }
+        } else {
+          // No TMDB API - require PIN for all
+          requiresPIN = true;
+          reason = `All content requires parental approval for Kids (7+) profile.`;
+        }
+      }
+      // Teens profile (13+): check TMDB rating
+      else if (activeProfile.id === 'teens-13') {
+        if (window.ipcRenderer && movie.id) {
+          try {
+            const cert = await window.ipcRenderer.invoke('tmdb:get-certification', movie.id) as { rating: string; country: string; isAdult: boolean } | null;
+
+            if (cert && cert.rating) {
+              // Teens can watch G, PG, PG-13. R and NC-17 need PIN
+              if (cert.rating === 'R' || cert.rating === 'NC-17') {
+                requiresPIN = true;
+                reason = `This movie is rated ${cert.rating}. Teens (13+) profile restricts R and NC-17 rated content.`;
+
+                // Fetch real parents guide data from IMDb
+                let contentWarnings = await fetchParentsGuide(movie.id);
+
+                // Fallback to demo warnings if no real data
+                if (contentWarnings.length === 0) {
+                  contentWarnings = getContentWarnings(movie.title);
+                }
+
+                setPinModalContext({
+                  movieTitle: movie.title,
+                  rating: cert.rating,
+                  reason: reason,
+                  contentWarnings: contentWarnings
+                });
+              }
+            } else {
+              // No TMDB rating - estimate from Parents Guide
+              const contentWarnings = await fetchParentsGuide(movie.id);
+
+              if (contentWarnings.length > 0) {
+                const estimatedRating = estimateRatingFromWarnings(contentWarnings);
+                console.log(`[FamilySafety] Estimated rating for "${movie.title}": ${estimatedRating}`);
+
+                // Teens (13+) require PIN for R and NC-17
+                if (estimatedRating === 'R' || estimatedRating === 'NC-17') {
+                  requiresPIN = true;
+                  reason = `Based on content analysis, this movie is estimated as ${estimatedRating}. Teens (13+) profile restricts R and NC-17 rated content.`;
+
+                  setPinModalContext({
+                    movieTitle: movie.title,
+                    rating: estimatedRating,
+                    reason: reason,
+                    contentWarnings: contentWarnings
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[Family] TMDB check failed, using keyword fallback:', err);
+            // Fallback to keyword-based check
+            const titleLower = movie.title.toLowerCase();
+            const hasBlockedKeyword = activeProfile.blockedKeywords.some(keyword =>
+              titleLower.includes(keyword.toLowerCase())
+            );
+
+            if (hasBlockedKeyword) {
+              requiresPIN = true;
+              reason = `This movie may contain mature content. PIN required for Teens (13+) profile.`;
+            }
+          }
+        }
+      }
+      // Family profile (16+): only NC-17 blocked
+      else if (activeProfile.id === 'family-16') {
+        if (window.ipcRenderer && movie.id) {
+          try {
+            const cert = await window.ipcRenderer.invoke('tmdb:get-certification', movie.id) as { rating: string; country: string; isAdult: boolean } | null;
+
+            if (cert && cert.rating === 'NC-17') {
+              requiresPIN = true;
+              reason = `This movie is rated ${cert.rating}. Family (16+) profile restricts NC-17 rated content.`;
+
+              // Fetch real parents guide data from IMDb
+              let contentWarnings = await fetchParentsGuide(movie.id);
+
+              // Fallback to demo warnings if no real data
+              if (contentWarnings.length === 0) {
+                contentWarnings = getContentWarnings(movie.title);
+              }
+
+              setPinModalContext({
+                movieTitle: movie.title,
+                rating: cert.rating,
+                reason: reason,
+                contentWarnings: contentWarnings
+              });
+            } else if (!cert) {
+              // No TMDB rating - estimate from Parents Guide
+              const contentWarnings = await fetchParentsGuide(movie.id);
+
+              if (contentWarnings.length > 0) {
+                const estimatedRating = estimateRatingFromWarnings(contentWarnings);
+                console.log(`[FamilySafety] Estimated rating for "${movie.title}": ${estimatedRating}`);
+
+                // Family (16+) only require PIN for NC-17
+                if (estimatedRating === 'NC-17') {
+                  requiresPIN = true;
+                  reason = `Based on content analysis, this movie is estimated as ${estimatedRating}. Family (16+) profile restricts NC-17 rated content.`;
+
+                  setPinModalContext({
+                    movieTitle: movie.title,
+                    rating: estimatedRating,
+                    reason: reason,
+                    contentWarnings: contentWarnings
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            // Keyword fallback
+            const titleLower = movie.title.toLowerCase();
+            const hasBlockedKeyword = activeProfile.blockedKeywords.some(keyword =>
+              titleLower.includes(keyword.toLowerCase())
+            );
+
+            if (hasBlockedKeyword) {
+              requiresPIN = true;
+              reason = `This movie may contain explicit content. PIN required for Family (16+) profile.`;
+            }
+          }
+        }
+      }
+      // Adult profile: no restrictions
+
+      if (requiresPIN) {
+        setPendingMovie(movie);
+        setIsPINModalOpen(true);
+        console.log(`[FamilySafety] PIN required for "${movie.title}": ${reason}`);
+        return;
+      }
+    }
+
+    // No restriction, proceed
+    proceedWithMovie(movie);
+  }, [activeProfile, proceedWithMovie]);
+
+  const handlePINSuccess = useCallback(() => {
+    if (pendingMovie) {
+      proceedWithMovie(pendingMovie);
+      setPendingMovie(null);
+    }
+  }, [pendingMovie, proceedWithMovie]);
 
   const handlePlayEpisode = useCallback((episode: Episode) => {
     if (!selectedMovie) return;
@@ -423,13 +682,29 @@ function App() {
     // Determine type by checking prefix
     setInitialPlaybackTime(item.progress);
 
+    // If IMDb ID is available, automatically search for subtitles
+    if (item.imdbId && window.ipcRenderer) {
+      window.ipcRenderer.invoke('list-subtitles', item.imdbId).then(items => {
+        const subtitles = items as SubtitleItem[];
+        setSubtitleList(subtitles);
+        console.log(`[Resume] Loaded ${subtitles.length} subtitles for ${item.title}`);
+      }).catch(err => {
+        console.error('[Resume] Subtitle listing failed:', err);
+        setSubtitleList([]);
+      });
+    } else {
+      // Clear subtitles if no IMDb ID
+      setSubtitleList([]);
+    }
+
     if (item.path.startsWith('magnet:')) {
-      handleTorrentStream(item.path);
+      // Pass skipTimeReset=true to preserve initialPlaybackTime
+      handleTorrentStream(item.path, undefined, true);
     } else if (item.path.includes('127.0.0.1') || item.path.includes('localhost')) {
       // Stale local stream URL from old history
       alert('This replay link is expired. Please search for the movie again.');
     } else {
-      // Local file or direct link
+      // Local file or direct link - don't reset time
       setVideoSrc(item.path);
       setActiveSource(item.path);
     }
@@ -442,15 +717,26 @@ function App() {
       <div className="fixed inset-0 w-screen h-screen bg-black z-[9999] flex flex-col">
         <VideoPlayer
           src={videoSrc}
-          initialTime={initialPlaybackTime} // Pass resume time
+          initialTime={initialPlaybackTime}
           skipSegments={skipSegments}
           onTimeUpdate={handleTimeUpdate}
           onBack={handleBack}
-          onChangeSource={handleChangeSource}
-          onCheckContent={() => setIsGuideOpen(true)}
           availableSubtitles={subtitleList}
           onDownloadSubtitle={handleDownloadSubtitle}
-          onOpenVLC={handleOpenVLC}
+          onSearchSubtitles={() => {
+            // Trigger subtitle search manually
+            if (selectedMovie?.id && window.ipcRenderer) {
+              window.ipcRenderer.invoke('list-subtitles', selectedMovie.id).then(items => {
+                const subtitles = items as SubtitleItem[];
+                setSubtitleList(subtitles);
+                console.log(`[Manual Search] Loaded ${subtitles.length} subtitles`);
+              }).catch(err => {
+                console.error('[Manual Search] Failed:', err);
+              });
+            }
+          }}
+          onCheckContent={() => setIsGuideOpen(true)}
+          onChangeSource={() => setIsTorrentListOpen(true)}
         />
         {downloadStats && downloadStats.progress < 1 && (
           <div className="absolute top-24 right-4 bg-black/60 text-white p-4 rounded-xl backdrop-blur-md border border-white/10 z-50 font-mono text-xs space-y-2 shadow-2xl select-none pointer-events-none animate-in fade-in duration-500 w-64">
@@ -575,6 +861,7 @@ function App() {
         query={searchInitialQuery}
         isLoading={isLoading && isSearchOpen}
         error={searchError}
+        activeProfile={activeProfile}
       />
 
       <RecentlyWatchedModal isOpen={isHistoryOpen} onClose={() => { setIsHistoryOpen(false); if (activeTab === 'history') setActiveTab('home'); }} items={recentlyWatched} onSelect={handleResumeWatch} onClear={handleClearHistory} />
@@ -596,6 +883,24 @@ function App() {
       />
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+      {/* PIN Prompt Modal */}
+      <PINPromptModal
+        isOpen={isPINModalOpen}
+        onClose={() => {
+          setIsPINModalOpen(false);
+          setPendingMovie(null);
+          setPinModalContext(null);
+        }}
+        onSuccess={handlePINSuccess}
+        title="Restricted Content"
+        message={pinModalContext?.reason || `This content may not be appropriate for your current profile (${activeProfile?.name}). Enter PIN to continue.`}
+        movieTitle={pinModalContext?.movieTitle || pendingMovie?.title}
+        rating={pinModalContext?.rating}
+        profileName={activeProfile?.name}
+        profileAgeLimit={activeProfile?.maxAge}
+        contentWarnings={pinModalContext?.contentWarnings}
+      />
 
       <LoadingOverlay isVisible={isLoading && !isSearchOpen} message={isTorrentListOpen ? "Searching sources..." : "Buffering stream..."} onCancel={handleCancelLoading} />
     </MainLayout>
